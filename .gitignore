@@ -1,0 +1,14 @@
+# Ignorar entornos de Python
+__pycache__/
+*.pyc
+*.pyo
+.env/
+.venv/
+
+# Ignorar archivos de configuraciones locales
+.DS_Store
+.vscode/
+
+# Ignorar la carpeta data
+data/
+CRC-July2014
