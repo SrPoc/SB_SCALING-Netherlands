@@ -5,16 +5,15 @@ from pathlib import Path
 
 Script para importar los datos de una estación de la red urbana de Amsterdam.
 
+El script debe correrse desde el directorio SB_SCALING-Netherlands
+
 '''
 
 
 # Función para cargar el archivo CSV y convertir la columna 'datetime' a formato datetime
-def cargar_datos():
-    # Obtener el directorio desde donde se ejecuta el script
-    ruta_actual = Path(__file__).parent
+def cargar_datos(ruta_datos):
 
-    # Crear la ruta relativa al archivo de datos
-    ruta_datos = ruta_actual / 'data' / 'Obs' / 'Amsterdam_Urban_Network' / 'D2194.csv'
+
 
     # Verificar si el archivo existe
     if not ruta_datos.exists():
@@ -24,7 +23,7 @@ def cargar_datos():
     df = pd.read_csv(ruta_datos, sep=',', skipinitialspace=True)
 
     # Ignorar la primera columna sin importar su nombre
-    df = df.iloc[:, 1:]
+    df = df.drop(columns = ['date', 'time'])
 
     # Convertir la columna 'datetime' a un objeto datetime de pandas si está presente
     if 'datetime' in df.columns:
@@ -46,13 +45,18 @@ def seleccionar_por_fecha_hora(df, fecha_inicio, fecha_fin):
 
 if __name__ == "__main__":
     try:
-        # Cargar los datos
-        df = cargar_datos()
+        # Cargar los 
+
+        ruta_actual = Path.cwd()
+
+        # Crear la ruta relativa al archivo de datos
+        ruta_datos = ruta_actual / 'data' / 'Obs' / 'Amsterdam_Urban_Network' / 'D2194.csv'
+        df = cargar_datos(ruta_datos)
 
         # Definir el rango de fechas que queremos seleccionar
         fecha_inicio = '2014-07-15 00:00:00'
         fecha_fin = '2014-07-17 00:00:00'
-
+        breakpoint()
         # Seleccionar los datos en el rango de fechas y horas
         if 'datetime' in df.index.names:  # Solo si datetime está en el índice
             df_rango = seleccionar_por_fecha_hora(df, fecha_inicio, fecha_fin)
@@ -63,8 +67,8 @@ if __name__ == "__main__":
         # print("Primeros registros del DataFrame:")
         # print(df.head())
 
-        # print(f"\nSubconjunto seleccionado desde {fecha_inicio} hasta {fecha_fin}:")
-        # print(df_rango)
+        print(f"\nSubconjunto seleccionado desde {fecha_inicio} hasta {fecha_fin}:")
+        print(df_rango)
 
     except FileNotFoundError as e:
         print(e)
