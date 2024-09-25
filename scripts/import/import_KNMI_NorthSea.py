@@ -7,7 +7,7 @@ OJO! EL FICHERO DE DATOS TIENE QUE HABERSELE RETIRADO LAS PRIMERAS LINEAS CORRES
 
 El script debe correrse desde el directorio SB_SCALING-Netherlands
 '''
-
+# Y ahora....
 # Función para cargar el archivo CSV y prepararlo
 def cargar_datos(ruta_datos):
     # Verificar si la ruta al archivo existe
