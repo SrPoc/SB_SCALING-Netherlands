@@ -258,9 +258,9 @@ for ruta_datos in [ruta_datos_KNMI_land, ruta_datos_KNMI_NorthSea]:
     for file_path in file_paths:
         df = cargar_datos(f'{ruta_datos}/{file_path}')
         if file_path == file_paths[0]:
-            df_full = df.loc[(slice(None), '2014-07-15'), :]
+            df_full = df.loc[(slice(None), '2014-07-16'), :]
         else:
-            df_full = pd.concat([df_full, df.loc[(slice(None), '2014-07-15'), :]])
+            df_full = pd.concat([df_full, df.loc[(slice(None), '2014-07-16'), :]])
 
     data_KNMI.append(df_full)
 
@@ -311,8 +311,8 @@ print(df_resultado_land)
 ####### FIN OBTENCION DATOS OBSERVACIONALES
 
 ### LEO LOS VALORES DE LOS WRFOUT (SIMULACIONES)
-ruta = ruta_actual / 'data' / 'Models' / 'WRF' / 'PrelimSim'
-file_names_WRF = sorted(filename for filename in os.listdir(ruta) if filename.startswith("wrfout_d02_2014-07-15_"))
+ruta = ruta_actual / 'data' / 'Models' / 'WRF' / 'PrelimSim_I'
+file_names_WRF = sorted(filename for filename in os.listdir(ruta) if filename.startswith("wrfout_d02_2014-07-16_"))
 
 df_resultado_WRF_land = df_resultado_land.copy()
 # Reemplazar todos los valores por NaN para rellenarlos en el bucle
@@ -334,26 +334,41 @@ for file_name_WRF in file_names_WRF:
     if time_str in pd.to_datetime(df_resultado_land.index): 
         for STN_value_land in STN_values_land:
             # Obtener los valores según la variable elegida
-            if var_name_WRF == 'WS':  # Velocidad del viento
-                u_value_WRF = int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'U10', coords_KNMI_land.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land.loc[STN_value_land, 'LON(east)'], time_idx=None))
-                v_value_WRF = int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'V10', coords_KNMI_land.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land.loc[STN_value_land, 'LON(east)'], time_idx=None))
-                valor_extraido = np.sqrt(u_value_WRF**2 + v_value_WRF**2)
-            elif var_name_WRF == 'T':  # Temperatura
-                valor_extraido = (int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', coords_KNMI_land.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land.loc[STN_value_land, 'LON(east)'], time_idx=None))-273)
-            elif var_name_WRF == 'Q':  # Humedad específica
-                # Obtener temperatura, punto de rocío y presión para calcular humedad específica
-                t_value_WRF = (int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', coords_KNMI_land.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land.loc[STN_value_land, 'LON(east)'], time_idx=None))-273)
-                p_value_WRF = int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'PSFC', coords_KNMI_land.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land.loc[STN_value_land, 'LON(east)'], time_idx=None))/100
-                td_value_WRF = int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'td2', coords_KNMI_land.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land.loc[STN_value_land, 'LON(east)'], time_idx=None))
+            # Coordenadas de la estación KNMI
+            stn_lat = coords_KNMI_land.loc[STN_value_land, 'LAT(north)']
+            stn_lon = coords_KNMI_land.loc[STN_value_land, 'LON(east)']
 
-                e_vapor = 6.112* math.exp(17.67*td_value_WRF/(td_value_WRF+243.5))
+            # Obtener las coordenadas de latitud y longitud del archivo WRF
+            lat_min, lat_max = coords_KNMI_land.loc[STN_value_land, 'LAT(north)'].min(), coords_KNMI_land.loc[STN_value_land, 'LAT(north)'].max()  # XLAT contiene las latitudes del WRF
+            lon_min, lon_max = coords_KNMI_land.loc[STN_value_land, 'LON(east)'].min(), coords_KNMI_land.loc[STN_value_land, 'LON(east)'].max()  # XLONG contiene las longitudes del WRF
 
-                valor_extraido = 0.622*(e_vapor)/(p_value_WRF-(0.378*e_vapor))
+            # Comprobar si la estación está dentro del rango de latitud y longitud
+            if (lat_min <= stn_lat <= lat_max) and (lon_min <= stn_lon <= lon_max):
 
+                if var_name_WRF == 'WS':  # Velocidad del viento
+                    u_value_WRF = int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'U10', coords_KNMI_land.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land.loc[STN_value_land, 'LON(east)'], time_idx=None))
+                    v_value_WRF = int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'V10', coords_KNMI_land.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land.loc[STN_value_land, 'LON(east)'], time_idx=None))
+                    valor_extraido = np.sqrt(u_value_WRF**2 + v_value_WRF**2)
+                elif var_name_WRF == 'T':  # Temperatura
+                    valor_extraido = (int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', coords_KNMI_land.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land.loc[STN_value_land, 'LON(east)'], time_idx=None))-273)
+                elif var_name_WRF == 'Q':  # Humedad específica
+                    # Obtener temperatura, punto de rocío y presión para calcular humedad específica
+                    breakpoint()
+                    t_value_WRF = (int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', coords_KNMI_land.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land.loc[STN_value_land, 'LON(east)'], time_idx=None))-273)
+                    p_value_WRF = int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'PSFC', coords_KNMI_land.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land.loc[STN_value_land, 'LON(east)'], time_idx=None))/100
+                    td_value_WRF = int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'td2', coords_KNMI_land.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land.loc[STN_value_land, 'LON(east)'], time_idx=None))
+
+                    e_vapor = 6.112* math.exp(17.67*td_value_WRF/(td_value_WRF+243.5))
+
+                    valor_extraido = 0.622*(e_vapor)/(p_value_WRF-(0.378*e_vapor))
+                else:
+                    raise ValueError("Variable no válida para WRF.")
+                # breakpoint()
+                df_resultado_WRF_land.loc[time_str.strftime('%Y-%m-%d %H:%M:%S'), STN_value_land] = valor_extraido
             else:
-                raise ValueError("Variable no válida para WRF.")
-            # breakpoint()
-            df_resultado_WRF_land.loc[time_str.strftime('%Y-%m-%d %H:%M:%S'), STN_value_land] = valor_extraido
+                print(f"La estación {STN_value_land} con latitud {stn_lat} y longitud {stn_lon} está fuera del dominio WRF.")
+
+                
 
 breakpoint()
 def calcular_estadisticos(df_modelo, df_obs):
