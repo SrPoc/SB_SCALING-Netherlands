@@ -37,7 +37,7 @@ def plot_wrf_variable(variable, lats, lons, fig, subplot_idx, cbar_lims):
     
     
     # Dibujamos la variable como un mapa de contornos en el eje proporcionado
-    contour = ax.contourf(to_np(lons), to_np(lats), to_np(variable), 10, cmap='coolwarm', transform=ccrs.PlateCarree(), levels = np.linspace(cbar_lims[0], cbar_lims[1], 20))#, vmin=cbar_lims[0], vmax=cbar_lims[1])
+    contour = ax.contourf(to_np(lons), to_np(lats), to_np(variable), 10, cmap='coolwarm', transform=ccrs.PlateCarree(), extend='both',  levels = np.linspace(cbar_lims[0], cbar_lims[1], 20))#, vmin=cbar_lims[0], vmax=cbar_lims[1])
     
     # Añadimos las características geográficas
     ax.coastlines()
@@ -46,7 +46,7 @@ def plot_wrf_variable(variable, lats, lons, fig, subplot_idx, cbar_lims):
     ax.add_feature(cfeature.STATES, linewidth=0.3)
     
     # Añadimos la barra de colores en el lateral (vertical)
-    cbar = fig.colorbar(contour, ax=ax, orientation='vertical', label=f"{variable.name} ({variable.attrs.get('units', 'No units')})", shrink=0.2, pad=0.02)
+    cbar = fig.colorbar(contour, ax=ax, orientation='vertical', label=f"{variable.name} ({variable.attrs.get('units', 'No units')})", shrink=0.6, pad=0.02)
     
     # Título del plot con el nombre de la variable y el tiempo formateado
     ax.set_title(f"{variable.name} - {pd.to_datetime(variable.Time.values).strftime('%d%b%Y %H:%M')}")
@@ -96,7 +96,7 @@ def plot_wind(variable_u, variable_v, lats, lons, fig, subplot_idx, cbar_lims):
     ws, wd = calculate_wind_speed_direction(u_np, v_np)
     
     # Dibujar la velocidad del viento como contorno
-    contour = ax.contourf(to_np(lons), to_np(lats), ws, 10, cmap='viridis', transform=ccrs.PlateCarree(), levels = np.linspace(cbar_lims[0], cbar_lims[1], 20))#, vmin=cbar_lims[0], vmax=cbar_lims[1])
+    contour = ax.contourf(to_np(lons), to_np(lats), ws, 10, cmap='viridis', transform=ccrs.PlateCarree(),extend='both', levels = np.linspace(cbar_lims[0], cbar_lims[1], 20))#, vmin=cbar_lims[0], vmax=cbar_lims[1])
     
     # Añadir características geográficas
     ax.coastlines()
@@ -104,7 +104,7 @@ def plot_wind(variable_u, variable_v, lats, lons, fig, subplot_idx, cbar_lims):
     ax.add_feature(cfeature.STATES, linewidth=0.5)
     
     # Añadir barra de colores
-    plt.colorbar(contour, ax=ax, orientation='vertical', label="Wind Speed (m/s)",  shrink=0.2, pad=0.02)
+    plt.colorbar(contour, ax=ax, orientation='vertical', label="Wind Speed (m/s)",  shrink=0.6, pad=0.02)
     
     # Dibujar los vectores de viento (quiver)
     ax.quiver(to_np(lons[::10, ::10]), to_np(lats[::10, ::10]), u_np[::10, ::10]/np.sqrt(u_np[::10, ::10]**2 + v_np[::10, ::10]**2), v_np[::10, ::10]/np.sqrt(u_np[::10, ::10]**2 + v_np[::10, ::10]**2), transform=ccrs.PlateCarree())
@@ -181,14 +181,14 @@ if __name__ == "__main__":
 
         # Plotear la variable de temperatura
 
-        plot_wrf_variable(variable-273, lats, lons, fig, subplot_idx=121, cbar_lims=(283-273, 292-273))
+        plot_wrf_variable(variable-273, lats, lons, fig, subplot_idx=211, cbar_lims=(283-273, 292-273))
 
         # Extraer U10 y V10
         u10, _, _, _ = process_wrf_file(f'{file_path}/{file_name}', "U10")
         v10, _, _, _ = process_wrf_file(f'{file_path}/{file_name}', "V10")
 
         # Dibujar el gráfico de viento
-        plot_wind(u10, v10, lats, lons, fig, subplot_idx=122, cbar_lims=(0, 8))  # 1 fila, 2 columnas, posición 2
+        plot_wind(u10, v10, lats, lons, fig, subplot_idx=212, cbar_lims=(0, 8))  # 1 fila, 2 columnas, posición 2
 
     #     # Plot terrain
     #    # Llamamos a la función para procesar el archivo WRF
@@ -211,3 +211,4 @@ if __name__ == "__main__":
     breakpoint()
     # Guardamos las imágenes en formato GIF
     images[0].save(f'{path_to_figs}/T-wind_subplot_{file_name[11:-6]}.gif', save_all=True, append_images=images[1:], optimize=False, duration=600, loop=0)
+
