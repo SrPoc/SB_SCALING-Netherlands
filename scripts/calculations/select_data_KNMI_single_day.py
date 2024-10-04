@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+
 '''
 Script para generar un fichero txt con los datos de todas las estaciones del KNMI juntos
 indexados por STN, datetime
@@ -99,7 +101,7 @@ for cod_STN in STN_values_land:
             elif var_name == 'WS':  # Velocidad del viento
                 valor = data_KNMI[0].loc[(cod_STN, time), 'FF'] / 10  # Velocidad del viento en m/s
             elif var_name == 'WD':  # Velocidad del viento
-                valor = data_KNMI[0].loc[(cod_STN, time), 'DD'] / 10  # Velocidad del viento en m/s            
+                valor = data_KNMI[0].loc[(cod_STN, time), 'DD'] if data_KNMI[0].loc[(cod_STN, time), 'DD'] not in [0, 990] else np.nan  ## Excluyo el valor si es 0 o 990          
             # Asignar el valor en el DataFrame
             df_resultado_land.loc[time, cod_STN] = valor
         except KeyError:
@@ -108,7 +110,7 @@ for cod_STN in STN_values_land:
 
 print(df_resultado_land)
 ####### FIN OBTENCION DATOS OBSERVACIONALES
-
+breakpoint()
 ### LEO LOS VALORES DE LOS WRFOUT (SIMULACIONES)
 ruta = ruta_actual / 'data' / 'Models' / 'WRF' / 'PrelimSim_I'
 file_names_WRF = sorted(filename for filename in os.listdir(ruta) if filename.startswith("wrfout_d02_2014-07-16_"))
@@ -152,8 +154,8 @@ for file_name_WRF in file_names_WRF:
             if (lat_min <= stn_lat <= lat_max) and (lon_min <= stn_lon <= lon_max):
                 print(f'Searching for nearest WRF grid point to station {STN_value_land}...')
                 if (var_name_WRF == 'WS') or (var_name_WRF == 'WD'):  # Velocidad del viento
-                    u_value_WRF = int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'U10', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=None))
-                    v_value_WRF = int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'V10', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=None))
+                    u_value_WRF = float(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'U10', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=None))
+                    v_value_WRF = float(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'V10', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=None))
                     if (var_name_WRF == 'WS'):
                         valor_extraido = np.sqrt(u_value_WRF**2 + v_value_WRF**2)
                     elif (var_name_WRF == 'WD'):
@@ -237,14 +239,19 @@ breakpoint()
 
 ### AHORA VAMOS A PUNTAR SERIES TEMPORALES DE WD:
 if var_name == 'WD':
-    data_WRF_WD = (np.degrees(np.arctan2(data_WRF_U, data_WRF_V)) + 360) % 360
-
+    data_WRF_WD = pd.DataFrame((np.degrees(-np.arctan2(data_WRF_U.to_numpy(dtype=float), -data_WRF_V.to_numpy(dtype=float))) + 360) % 360, index=data_WRF_U.index, columns=data_WRF_U.columns)
+    data_WRF_WD.index = pd.to_datetime(data_WRF_WD.index)
+    df_resultado_land.index = pd.to_datetime(df_resultado_land.index)
     # Crear una figura y eje
     plt.figure(figsize=(10, 6))
 
     # Graficamos ambas columnas
-    plt.plot(data_WRF_WD['215'].index, data_WRF_WD['215'], label='STN 215')
-    plt.plot(data_WRF_WD['348'].index, data_WRF_WD['348'], label='STN 348')
+    plt.plot(data_WRF_WD[215].index, data_WRF_WD[215], label='STN 215 (WRF nearest)', linestyle = 'dashed', color = 'green')
+    plt.plot(data_WRF_WD[348].index, data_WRF_WD[348], label='STN 348 (WRF nearest)', linestyle = 'dashed', color = 'orange')
+
+    plt.plot(df_resultado_land[215].index, df_resultado_land[215], label='STN 215 (KNMI)', color = 'green')
+    plt.plot(df_resultado_land[348].index, df_resultado_land[348], label='STN 348 (KNMI)', color = 'orange')
+
 
     # Añadimos etiquetas y título
     plt.xlabel('Fecha')
@@ -253,8 +260,20 @@ if var_name == 'WD':
     plt.legend()
 
     # Rotamos las etiquetas del eje x para mejor legibilidad
-    plt.xticks(rotation=45)
+    # Formatear el eje de tiempo como "DDMon HHh"
+    ax = plt.gca()  # Obtener el eje actual
+    time_fmt = mdates.DateFormatter('%H')
 
+    # Set the locator and formatter for the x-axis ticks
+    ax.xaxis.set_major_locator(mdates.HourLocator(byhour=[0, 6, 12, 18, 24]))
+    ax.xaxis.set_minor_locator(mdates.HourLocator(byhour=[0, 3, 6, 9, 12, 15, 18, 21,24]))
+    ax.xaxis.set_major_formatter(time_fmt)
+
+    # Ajuste automático del formato de fecha en el eje x
+    ax.grid(True)
+
+    plt.yticks([0, 90, 180, 270], ['S', 'E', 'N', 'W'])
+    
     # Mostramos la gráfica
     plt.tight_layout()
-    plt.show()
+    plt.savefig(f'{ruta_actual}/figs/prueba_WD.png')
