@@ -37,14 +37,18 @@ var_name_WRF = var_name
 
 if var_name == 'T':
     var_name_KNMI = 'T'  # Temperatura en 0.1 ºC
+    var_units = 'ºC'
 elif var_name == 'WS':
     var_name_KNMI = 'FF'  # Velocidad del viento
+    var_units = 'm/s'
 elif var_name == 'Q':  # Humedad específica
     var_name_KNMI = 'U'  # Se utilizará para calcular la humedad específica
+    var_units = 'g/kg'
 elif var_name == 'WD':
     var_name_KNMI = 'DD'  # Se utilizará para calcular la humedad específica
+    var_units = 'Where the wind comes from'
 else:
-    raise ValueError("La variable elegida no es válida. Elige entre 'T', 'WS', o 'q'.")
+    raise ValueError("La variable elegida no es válida. Elige entre 'T', 'WS', 'WD', o 'q'.")
 
 ####### INICIO OBTENCION DATOS OBSERVACIONALES
 ### LEO LOS DATOS DE KNMI Y LOS GUARDO EN LA VARIABLE data_KNMI
@@ -110,7 +114,7 @@ for cod_STN in STN_values_land:
 
 print(df_resultado_land)
 ####### FIN OBTENCION DATOS OBSERVACIONALES
-breakpoint()
+
 ### LEO LOS VALORES DE LOS WRFOUT (SIMULACIONES)
 ruta = ruta_actual / 'data' / 'Models' / 'WRF' / 'PrelimSim_I'
 file_names_WRF = sorted(filename for filename in os.listdir(ruta) if filename.startswith("wrfout_d02_2014-07-16_"))
@@ -133,6 +137,7 @@ for file_name_WRF in file_names_WRF:
 
     # Buscar la fila correspondiente en df_resultado_land
     if time_str in pd.to_datetime(df_resultado_land.index):
+        print('#####################################################')
         print(f'#####{time_str} ...')
         # SI LA VARIABLE ES WD, GENERO DOS DF DE DATOS PARA U Y V PARA HACER PLOTS 
         if (var_name_WRF == 'WD') and (time_str == pd.to_datetime(df_resultado_land.index)[0]):
@@ -152,7 +157,7 @@ for file_name_WRF in file_names_WRF:
 
             # Comprobar si la estación está dentro del rango del dominio de WRF
             if (lat_min <= stn_lat <= lat_max) and (lon_min <= stn_lon <= lon_max):
-                print(f'Searching for nearest WRF grid point to station {STN_value_land}...')
+                print(f'--Searching for nearest WRF grid point to station {STN_value_land}...')
                 if (var_name_WRF == 'WS') or (var_name_WRF == 'WD'):  # Velocidad del viento
                     u_value_WRF = float(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'U10', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=None))
                     v_value_WRF = float(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'V10', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=None))
@@ -162,12 +167,12 @@ for file_name_WRF in file_names_WRF:
                         data_WRF_U.loc[time_str.strftime('%Y-%m-%d %H:%M:%S'), STN_value_land] = u_value_WRF
                         data_WRF_V.loc[time_str.strftime('%Y-%m-%d %H:%M:%S'), STN_value_land] = v_value_WRF
                 elif var_name_WRF == 'T':  # Temperatura
-                    valor_extraido = (int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=None))-273)
+                    valor_extraido = (float(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=None))-273)
                 elif var_name_WRF == 'Q':  # Humedad específica
                     # Obtener temperatura, punto de rocío y presión para calcular humedad específica
-                    t_value_WRF = (int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=None))-273)
-                    p_value_WRF = int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'PSFC', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=None))/100
-                    td_value_WRF = int(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'td2', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=None))
+                    t_value_WRF = (float(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=None))-273)
+                    p_value_WRF = float(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'PSFC', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=None))/100
+                    td_value_WRF = float(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'td2', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=None))
 
                     e_vapor = 6.112* math.exp(17.67*td_value_WRF/(td_value_WRF+243.5))
 
@@ -180,7 +185,7 @@ for file_name_WRF in file_names_WRF:
             else:
                 if (time_str == pd.to_datetime(df_resultado_land.index)[0]):
                     print(f"La estación {STN_value_land} con latitud {stn_lat} y longitud {stn_lon} está fuera del dominio WRF.")
-
+        print('#####################################################')
                 
 
 def calcular_estadisticos(df_modelo, df_obs):
@@ -235,45 +240,87 @@ print(estadisticos)
 pd.DataFrame([estadisticos.mean()]).round(2).to_csv(f'{ruta_actual}/misc/WRF_validation/Estadisticos_{var_name}_WRF_vs_KNMIObs.csv', index = False)
 breakpoint()
 
+def rellenar_huecos(df, metodo='interpolacion'):
+    """
+    Rellena los huecos de un DataFrame con varios métodos posibles.
+    
+    df: DataFrame o Serie con huecos (NaN).
+    metodo: Método para rellenar los huecos. 
+            Puede ser 'interpolacion', 'ffill' (propagación hacia adelante), 
+            'bfill' (propagación hacia atrás), o un valor constante.
+    
+    Devuelve: DataFrame o Serie con huecos rellenados.
+    """
+    # Asegurarse de que la columna tiene tipo numérico
+    df = pd.to_numeric(df, errors='coerce')
+    
+    if metodo == 'interpolacion':
+        # Interpolación con dirección both para rellenar huecos al principio y al final
+        return df.interpolate(method='linear', limit_direction='both')
+    elif metodo == 'ffill':
+        return df.fillna(method='ffill')
+    elif metodo == 'bfill':
+        return df.fillna(method='bfill')
+    else:
+        # Asume que el valor del método es un número y rellena los huecos con ese valor
+        return df.fillna(metodo)
+breakpoint()
+
+sea_station_code = 320
+land_station_code = 215
+df_resultado_land.index = pd.to_datetime(df_resultado_land.index)
+
+df_rellenado_sea_station = rellenar_huecos(df_resultado_land[sea_station_code], metodo='interpolacion')
+df_rellenado_land_station = rellenar_huecos(df_resultado_land[land_station_code], metodo='interpolacion')
 
 
 ### AHORA VAMOS A PUNTAR SERIES TEMPORALES DE WD:
 if var_name == 'WD':
     data_WRF_WD = pd.DataFrame((np.degrees(-np.arctan2(data_WRF_U.to_numpy(dtype=float), -data_WRF_V.to_numpy(dtype=float))) + 360) % 360, index=data_WRF_U.index, columns=data_WRF_U.columns)
-    data_WRF_WD.index = pd.to_datetime(data_WRF_WD.index)
-    df_resultado_land.index = pd.to_datetime(df_resultado_land.index)
-    # Crear una figura y eje
-    plt.figure(figsize=(10, 6))
+else:
+    data_WRF_plot = df_resultado_WRF_land.copy()
+data_WRF_plot.index = pd.to_datetime(data_WRF_plot.index)
+df_resultado_land.index = pd.to_datetime(df_resultado_land.index)
+# Crear una figura y eje
+plt.figure(figsize=(10, 6))
 
-    # Graficamos ambas columnas
-    plt.plot(data_WRF_WD[215].index, data_WRF_WD[215], label='STN 215 (WRF nearest)', linestyle = 'dashed', color = 'green')
-    plt.plot(data_WRF_WD[348].index, data_WRF_WD[348], label='STN 348 (WRF nearest)', linestyle = 'dashed', color = 'orange')
+# Graficamos ambas columnas
+plt.plot(df_rellenado_sea_station.index, df_rellenado_sea_station, color = 'red')
+plt.plot(df_rellenado_land_station.index, df_rellenado_land_station, color = 'red', label = 'Filled missing data')
 
-    plt.plot(df_resultado_land[215].index, df_resultado_land[215], label='STN 215 (KNMI)', color = 'green')
-    plt.plot(df_resultado_land[348].index, df_resultado_land[348], label='STN 348 (KNMI)', color = 'orange')
+plt.plot(df_resultado_land[sea_station_code].index, df_resultado_land[sea_station_code], label=f'STN {sea_station_code} (KNMI)', color = 'blue')
+plt.plot(df_resultado_land[land_station_code].index, df_resultado_land[land_station_code], label=f'STN {land_station_code} (KNMI)', color = 'green')
+
+plt.plot(data_WRF_plot[sea_station_code].index, data_WRF_plot[sea_station_code], label=f'STN {sea_station_code} (WRF nearest)', linestyle = 'dashed', color = 'blue')
+plt.plot(data_WRF_plot[land_station_code].index, data_WRF_plot[land_station_code], label=f'STN {land_station_code} (WRF nearest)', linestyle = 'dashed', color = 'green')
+
+# Añadimos etiquetas y título
+plt.xlabel('Hour (UTC)')
+if var_name == 'WD':
+    plt.yticks([0, 90, 180, 270, 360], ['N', 'E', 'S', 'W', 'N'])
+
+plt.ylabel(f'{var_name} ({var_units})')
+plt.title(f'{var_name} for STN {sea_station_code} y STN {land_station_code}', fontsize = 20)
+plt.legend(loc='upper left', fontsize = 12)
+
+# Rotamos las etiquetas del eje x para mejor legibilidad
+# Formatear el eje de tiempo como "DDMon HHh"
+ax = plt.gca()  # Obtener el eje actual
+time_fmt = mdates.DateFormatter('%H')
+
+# Set the locator and formatter for the x-axis ticks
+# Major ticks por hora
+ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))  # Cada 1 hora
+
+# Minor ticks cada media hora
+ax.xaxis.set_minor_locator(mdates.MinuteLocator(interval=30))  # Cada 30 minutos
+ax.xaxis.set_major_formatter(time_fmt)
+
+# Ajuste automático del formato de fecha en el eje x
+ax.grid(True)
 
 
-    # Añadimos etiquetas y título
-    plt.xlabel('Fecha')
-    plt.ylabel('Dirección del Viento (°)')
-    plt.title('Dirección del Viento para STN 215 y STN 348')
-    plt.legend()
 
-    # Rotamos las etiquetas del eje x para mejor legibilidad
-    # Formatear el eje de tiempo como "DDMon HHh"
-    ax = plt.gca()  # Obtener el eje actual
-    time_fmt = mdates.DateFormatter('%H')
-
-    # Set the locator and formatter for the x-axis ticks
-    ax.xaxis.set_major_locator(mdates.HourLocator(byhour=[0, 6, 12, 18, 24]))
-    ax.xaxis.set_minor_locator(mdates.HourLocator(byhour=[0, 3, 6, 9, 12, 15, 18, 21,24]))
-    ax.xaxis.set_major_formatter(time_fmt)
-
-    # Ajuste automático del formato de fecha en el eje x
-    ax.grid(True)
-
-    plt.yticks([0, 90, 180, 270], ['S', 'E', 'N', 'W'])
-    
-    # Mostramos la gráfica
-    plt.tight_layout()
-    plt.savefig(f'{ruta_actual}/figs/prueba_WD.png')
+# Mostramos la gráfica
+plt.tight_layout()
+plt.savefig(f'{ruta_actual}/figs/ts/Obs-vs-Model/{var_name}_Land-vs-Sea_KNMI-vs-WRF.png')

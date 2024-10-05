@@ -49,7 +49,7 @@ def plot_wrf_variable(variable, lats, lons, fig, subplot_idx, cbar_lims):
     cbar = fig.colorbar(contour, ax=ax, orientation='vertical', label=f"{variable.name} ({variable.attrs.get('units', 'No units')})", shrink=0.6, pad=0.02)
     
     # Título del plot con el nombre de la variable y el tiempo formateado
-    ax.set_title(f"{variable.name} - {pd.to_datetime(variable.Time.values).strftime('%d%b%Y %H:%M')}")
+    ax.set_title(f"{variable.name} - {pd.to_datetime(variable.Time.values).strftime('%d%b%Y %H:%M')}", fontsize = 20)
 
 
 def calculate_wind_speed_direction(u, v):
@@ -68,7 +68,7 @@ def calculate_wind_speed_direction(u, v):
     ws = np.sqrt(u**2 + v**2)
     
     # Dirección del viento en grados
-    wd = (270 - (np.arctan2(v, u) * 180 / np.pi)) % 360
+    wd = (270 - (np.arctan2(v, u) * 180 / np.pi)) % 360 #CUIDADO CON ESTA WD, NO SE SI ESTA BIEN...
     
     return ws, wd
 
@@ -110,7 +110,7 @@ def plot_wind(variable_u, variable_v, lats, lons, fig, subplot_idx, cbar_lims):
     ax.quiver(to_np(lons[::10, ::10]), to_np(lats[::10, ::10]), u_np[::10, ::10]/np.sqrt(u_np[::10, ::10]**2 + v_np[::10, ::10]**2), v_np[::10, ::10]/np.sqrt(u_np[::10, ::10]**2 + v_np[::10, ::10]**2), transform=ccrs.PlateCarree(), scale=50, width=0.0025)
     
     # Título
-    ax.set_title(f"WS & WD - {pd.to_datetime(variable_u.Time.values).strftime('%d%b%Y %H:%M')}")
+    ax.set_title(f"WS & WD - {pd.to_datetime(variable_u.Time.values).strftime('%d%b%Y %H:%M')}", fontsize = 20)
 
 
 def plot_terrain_with_hillshade(hgt, fig, subplot_idx):
@@ -156,7 +156,7 @@ def plot_terrain_with_hillshade(hgt, fig, subplot_idx):
     cbar.set_label("Altitude (m)")
 
     # Añadir el título
-    ax.set_title("Altura del Terreno con Hillshade", fontsize=16)
+    ax.set_title("Altura del Terreno con Hillshade", fontsize=20)
 
 
 
@@ -201,15 +201,18 @@ if __name__ == "__main__":
     #     # Mostrar la figura completa
 
         ax1,ax2 = fig.axes[0], fig.axes[2]  # Acceder al primer eje creado
-        ax2.scatter(4.437, 52.141, marker='o', color='red', transform=ccrs.PlateCarree(), label = 'STN 215: Voorschoten')
-        ax2.scatter(4.926, 51.97, marker='o', color='green', transform=ccrs.PlateCarree(), label = 'STN 348: Cabauw')
-        ax2.legend()
-
+        ax2.scatter(4.437, 52.141, marker='o', s=100, color='green', transform=ccrs.PlateCarree(), label = 'STN 215: Voorschoten')
+        ax2.scatter(4.926, 51.97, marker='o', s=100, color='orange', transform=ccrs.PlateCarree(), label = 'STN 348: Cabauw')
+        ax2.scatter(3.237, 52.367, marker='o', s=100, color='red', transform=ccrs.PlateCarree(), label = 'STN 203: P11-B')
+        ax2.scatter(3.667, 51.939, marker='o', s=100, color='blue', transform=ccrs.PlateCarree(), label = 'STN 320: Lichteiland Goeree')
+        ax2.scatter(3.27, 52, marker='o', s=100, color='pink', transform=ccrs.PlateCarree(), label = 'STN 321: Europlatform')
+        legend = ax2.legend(frameon=True, fontsize = 15, ncol = 2)
+        legend.get_frame().set_alpha(1)
         plt.tight_layout()
 
         # Guardamos la figura en un archivo (si es necesario)
         fig.savefig(Path.cwd() / 'figs' / 'maps' / 'T-wind_subplot' / '2014-07-16'/ f'T-wind_subplot_{file_name[11:-3]}.png', bbox_inches='tight')
-
+        plt.close()
         #CREAR UN GIF DE TODAS LAS IMAGENES GENERADAS
         # Abrimos las imágenes y las convertimos a formato de PIL
         
