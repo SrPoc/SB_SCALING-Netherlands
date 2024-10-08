@@ -181,7 +181,7 @@ if __name__ == "__main__":
 
         # Plotear la variable de temperatura
 
-        plot_wrf_variable(variable-273, lats, lons, fig, subplot_idx=211, cbar_lims=(283-273, 300-273))
+        plot_wrf_variable(variable-273, lats, lons, fig, subplot_idx=311, cbar_lims=(283-273, 300-273))
         
 
 
@@ -190,22 +190,20 @@ if __name__ == "__main__":
         v10, _, _, _ = process_wrf_file(f'{file_path}/{file_name}', "V10")
 
         # Dibujar el gráfico de viento
-        plot_wind(u10, v10, lats, lons, fig, subplot_idx=212, cbar_lims=(0, 8))  # 1 fila, 2 columnas, posición 2
+        plot_wind(u10, v10, lats, lons, fig, subplot_idx=312, cbar_lims=(0, 8))  # 1 fila, 2 columnas, posición 2
 
-    #     # Plot terrain
-    #    # Llamamos a la función para procesar el archivo WRF
-    #     hgt, _, _, _ = process_wrf_file(file_path, 'HGT', time_idx=None)
-    #     plot_terrain_with_hillshade(hgt, fig, subplot_idx=313)
+        variable2, lats, lons, times = process_wrf_file(f'{file_path}/{file_name}', 'PBLH', time_idx=None)
+        plot_wrf_variable(variable2, lats, lons, fig, subplot_idx=313, cbar_lims=(0, 1300))
 
 
     #     # Mostrar la figura completa
 
         ax1,ax2 = fig.axes[0], fig.axes[2]  # Acceder al primer eje creado
         ax2.scatter(4.437, 52.141, marker='o', s=100, color='green', transform=ccrs.PlateCarree(), label = 'STN 215: Voorschoten')
-        ax2.scatter(4.926, 51.97, marker='o', s=100, color='orange', transform=ccrs.PlateCarree(), label = 'STN 348: Cabauw')
-        ax2.scatter(3.237, 52.367, marker='o', s=100, color='red', transform=ccrs.PlateCarree(), label = 'STN 203: P11-B')
+        # ax2.scatter(4.926, 51.97, marker='o', s=100, color='orange', transform=ccrs.PlateCarree(), label = 'STN 348: Cabauw')
+        # ax2.scatter(3.237, 52.367, marker='o', s=100, color='red', transform=ccrs.PlateCarree(), label = 'STN 203: P11-B')
         ax2.scatter(3.667, 51.939, marker='o', s=100, color='blue', transform=ccrs.PlateCarree(), label = 'STN 320: Lichteiland Goeree')
-        ax2.scatter(3.27, 52, marker='o', s=100, color='pink', transform=ccrs.PlateCarree(), label = 'STN 321: Europlatform')
+        # ax2.scatter(3.27, 52, marker='o', s=100, color='pink', transform=ccrs.PlateCarree(), label = 'STN 321: Europlatform')
         legend = ax2.legend(frameon=True, fontsize = 15, ncol = 2)
         legend.get_frame().set_alpha(1)
         plt.tight_layout()
