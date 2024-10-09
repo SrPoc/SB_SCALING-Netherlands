@@ -37,7 +37,7 @@ def plot_wrf_variable(variable, lats, lons, fig, subplot_idx, cbar_lims):
     
     
     # Dibujamos la variable como un mapa de contornos en el eje proporcionado
-    contour = ax.contourf(to_np(lons), to_np(lats), to_np(variable), 10, cmap='Reds', transform=ccrs.PlateCarree(), extend='both',  levels = np.linspace(cbar_lims[0], cbar_lims[1], 20))#, vmin=cbar_lims[0], vmax=cbar_lims[1])
+    contour = ax.contourf(to_np(lons), to_np(lats), to_np(variable), 10, cmap='Reds', transform=ccrs.PlateCarree(), extend='both',  levels = np.linspace(np.round(cbar_lims[0],0), np.round(cbar_lims[1],0), 20))#, vmin=cbar_lims[0], vmax=cbar_lims[1])
     
     # Añadimos las características geográficas
     ax.coastlines()
@@ -96,7 +96,7 @@ def plot_wind(variable_u, variable_v, lats, lons, fig, subplot_idx, cbar_lims):
     ws, wd = calculate_wind_speed_direction(u_np, v_np)
     
     # Dibujar la velocidad del viento como contorno
-    contour = ax.contourf(to_np(lons), to_np(lats), ws, 10, cmap='Purples', transform=ccrs.PlateCarree(),extend='both', levels = np.linspace(cbar_lims[0], cbar_lims[1], 20))#, vmin=cbar_lims[0], vmax=cbar_lims[1])
+    contour = ax.contourf(to_np(lons), to_np(lats), ws, 10, cmap='Purples', transform=ccrs.PlateCarree(),extend='both', levels = np.linspace(np.round(cbar_lims[0],0), np.round(cbar_lims[1],0), 20))#, vmin=cbar_lims[0], vmax=cbar_lims[1])
     
     # Añadir características geográficas
     ax.coastlines()
@@ -177,7 +177,7 @@ if __name__ == "__main__":
         variable, lats, lons, times = process_wrf_file(f'{file_path}/{file_name}', var_name, time_idx=None)
 
         # Crear una figura con varios subplots
-        fig = plt.figure(figsize=(14, 10))
+        fig = plt.figure(figsize=(15,17))
 
         # Plotear la variable de temperatura
 
@@ -193,7 +193,7 @@ if __name__ == "__main__":
         plot_wind(u10, v10, lats, lons, fig, subplot_idx=312, cbar_lims=(0, 8))  # 1 fila, 2 columnas, posición 2
 
         variable2, lats, lons, times = process_wrf_file(f'{file_path}/{file_name}', 'PBLH', time_idx=None)
-        plot_wrf_variable(variable2, lats, lons, fig, subplot_idx=313, cbar_lims=(0, 1300))
+        plot_wrf_variable(variable2, lats, lons, fig, subplot_idx=313, cbar_lims=(0, 1800))
 
 
     #     # Mostrar la figura completa
@@ -204,10 +204,10 @@ if __name__ == "__main__":
         # ax2.scatter(3.237, 52.367, marker='o', s=100, color='red', transform=ccrs.PlateCarree(), label = 'STN 203: P11-B')
         ax2.scatter(3.667, 51.939, marker='o', s=100, color='blue', transform=ccrs.PlateCarree(), label = 'STN 320: Lichteiland Goeree')
         # ax2.scatter(3.27, 52, marker='o', s=100, color='pink', transform=ccrs.PlateCarree(), label = 'STN 321: Europlatform')
-        legend = ax2.legend(frameon=True, fontsize = 15, ncol = 2)
+        legend = ax2.legend(frameon=True, fontsize = 10, ncol = 1)
         legend.get_frame().set_alpha(1)
+        # plt.tight_layout()
         plt.tight_layout()
-
         # Guardamos la figura en un archivo (si es necesario)
         fig.savefig(Path.cwd() / 'figs' / 'maps' / 'T-wind_subplot' / '2014-07-16'/ f'T-wind_subplot_{file_name[11:-3]}.png', bbox_inches='tight')
         plt.close()
