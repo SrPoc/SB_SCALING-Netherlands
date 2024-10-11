@@ -127,11 +127,14 @@ for filename in filenames:
     # Evitar la división por cero
     magnitude[magnitude == 0] = 1.0  # Asignar 1 donde el módulo es 0 para evitar divisiones por cero
 
+    plot_every = 5
+
+    u_cross_np_filtered = np.where((to_np(u_cross)[:, ::plot_every] > -0.5) & (to_np(u_cross)[:, ::plot_every] < 0.5), 0, to_np(u_cross)[:, ::plot_every])  # for a better visualisation
 
     # Añadir quivers para las componentes U y V del viento
     # quiver_skip = (slice(None, None, 5), slice(None, None, 5))  # Esto ajusta la densidad de quivers (cada 5 puntos)
-    quiver = ax.quiver(np.arange(coord_pairs.shape[0])[::5], to_np(u_cross["vertical"]), 
-            to_np(u_cross)[:, ::5]/magnitude[:, ::5], to_np(w_cross)[:, ::5]/magnitude[:, ::5], pivot='mid', color='black', scale=50)
+    quiver = ax.quiver(np.arange(coord_pairs.shape[0])[::plot_every], to_np(u_cross["vertical"]), 
+            u_cross_np_filtered, to_np(w_cross)[:, ::plot_every], pivot='mid', color='black', scale=50)
 
     # Definir el terreno (por ejemplo, donde sea mayor que un umbral considerarlo tierra)
     ocean_mask = to_np(terrain_transect) == 0  # Considerar océano cuando el terreno es 0

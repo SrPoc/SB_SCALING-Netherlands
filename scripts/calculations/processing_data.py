@@ -2,7 +2,7 @@
 Script que contiene diversas funciones para jacer cálculos con los datos
 '''
 
-def generate_KNMI_df_STNvsDATETIME(fecha, var_name):
+def generate_KNMI_df_STNvsDATETIME(fecha, var_name, STN = 'all'):
 
     '''
     Script para generar un fichero txt con los datos de todas las estaciones del KNMI juntos
@@ -74,11 +74,37 @@ def generate_KNMI_df_STNvsDATETIME(fecha, var_name):
     else:
         raise ValueError(f"La variable '{var_name}' no está en la lista de variables permitidas.")
 
+    ### LEO LOS FICHEROS DE LAS COORDENADAS DE LAS ESTACIONES
+    coords_KNMI_land = pd.read_csv(ruta_coords_KNMI_land, sep=';', header=0, usecols=[0, 1, 2, 4])
+    coords_KNMI_land.set_index('STN', inplace=True)
+    coords_KNMI_NorthSea = pd.read_csv(ruta_coords_KNMI_NorthSea, sep=';', header=0)
+    coords_KNMI_NorthSea.set_index('STN', inplace=True)
+
+    coords_KNMI_land_and_sea = pd.concat([coords_KNMI_land, coords_KNMI_NorthSea])
+    
+    ######################################################################################################
+    # Filtrar estaciones según el valor de STN
+    if STN == 'all':
+        estaciones_seleccionadas = coords_KNMI_land_and_sea.index
+        file_paths = [filename for filename in sorted(os.listdir(ruta_datos_KNMI)) if filename.startswith("uurgeg_")]
+        # breakpoint()
+    elif isinstance(STN, (list, tuple, np.ndarray)):  # Si STN es una lista o un array de estaciones
+        estaciones_seleccionadas = [STN] if STN in coords_KNMI_land_and_sea.index else []
+        file_paths = [filename for filename in os.listdir(ruta_datos_KNMI) if any(filename.startswith(f'uurgeg_{str(stn)}') for stn in STN)]
+        # breakpoint()
+    else:  # Si STN es una única estación
+        estaciones_seleccionadas = [STN if STN in coords_KNMI_land_and_sea.index else []]
+        file_paths = [filename for filename in sorted(os.listdir(ruta_datos_KNMI)) if filename.startswith(f"uurgeg_{str(estaciones_seleccionadas[0])}")]
+        # breakpoint()
+
+    if len(file_paths) == 0:
+        raise ValueError("No se han encontrado estaciones válidas para el cálculo.")
+    ######################################################################################################
 
     ####### INICIO OBTENCION DATOS OBSERVACIONALES
     ### LEO LOS DATOS DE KNMI Y LOS GUARDO EN LA VARIABLE data_KNMI
     data_KNMI = []
-    file_paths = [filename for filename in sorted(os.listdir(ruta_datos_KNMI)) if filename.startswith("uurgeg_")]
+    
 
     for file_path in file_paths:
         print(f'Reading {file_path} ..')
@@ -93,30 +119,19 @@ def generate_KNMI_df_STNvsDATETIME(fecha, var_name):
     # data_KNMI es una lista que contiene en el primer hueco los datos de superficie y en el segundo los del North Sea
     ###
 
-    ### LEO LOS FICHEROS DE LAS COORDENADAS DE LAS ESTACIONES
-    coords_KNMI_land = pd.read_csv(ruta_coords_KNMI_land, sep=';', header=0, usecols=[0, 1, 2, 4])
-    coords_KNMI_land.set_index('STN', inplace=True)
-    coords_KNMI_NorthSea = pd.read_csv(ruta_coords_KNMI_NorthSea, sep=';', header=0)
-    coords_KNMI_NorthSea.set_index('STN', inplace=True)
-
-    coords_KNMI_land_and_sea = pd.concat([coords_KNMI_land, coords_KNMI_NorthSea])
-
-    ###
-
-    ### EXTRAIGO LOS CODIGOS DE LAS ESTACIONES DE LAND Y NORTHSEA:
-    STN_values_land = sorted(data_KNMI[0].index.get_level_values(0).unique())
-    # STN_values_NorthSea = data_KNMI[1].index.get_level_values(0).unique()
 
     str_times_land = data_KNMI[0].index.get_level_values(1).unique().strftime('%Y-%m-%d %H:%M:%S').tolist()
     # str_times_NorthSea = data_KNMI[1].index.get_level_values(1).unique().strftime('%Y-%m-%d %H:%M:%S').tolist()
     ###
 
     # Crear un DataFrame vacío con los tiempos como índice y STN como columnas
-    df_resultado_OBS = pd.DataFrame(index=str_times_land, columns=STN_values_land)  # Contendrá el valor de la variable correspondiente a la estación STN (columna) y datetime (fila)
+
+    df_resultado_OBS = pd.DataFrame(index=str_times_land, columns=estaciones_seleccionadas)  # Contendrá el valor de la variable correspondiente a la estación STN (columna) y datetime (fila)
     # df_resultado_NorthSea = pd.DataFrame(index=str_times_NorthSea, columns=STN_values_NorthSea)
 
     # Iterar sobre cada código de STN y cada tiempo
-    for cod_STN in STN_values_land:
+    
+    for cod_STN in estaciones_seleccionadas:
         for time in str_times_land:
             try:
                 if var_name == 'Q':  # Humedad específica
@@ -140,10 +155,13 @@ def generate_KNMI_df_STNvsDATETIME(fecha, var_name):
 
     # print(df_resultado_OBS)
     ####### FIN OBTENCION DATOS OBSERVACIONALES
+
+    df_resultado_OBS.index = pd.to_datetime(df_resultado_OBS.index)
+    df_resultado_OBS.index = df_resultado_OBS.index.tz_localize('UTC')
     return df_resultado_OBS, coords_KNMI_land_and_sea
 
 
-def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name):
+def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'all'):
     import pandas as pd
     import numpy as np
     import math
@@ -164,7 +182,8 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name):
         - ... (Añadir a medida que se hagan)
     --> fecha: str en formato 'yyyy-mm-dd' correspondiente a los ficheros de ese día
     --> var_name: Variable en formato string del wrfout
-
+    --> STN: Se fija en 'all' para que calcule para todas las estaciones. También se puede introducir una para 
+        solo extraer los datos de esa estacion
     OUTPUTS: 
     --> df_resultado_WRF: DataFrame con indice datetime y columnas correspondientes al punto más cercano de la
         malla de WRF. 
@@ -205,7 +224,18 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name):
     coords_KNMI_NorthSea.set_index('STN', inplace=True)
 
     coords_KNMI_land_and_sea = pd.concat([coords_KNMI_land, coords_KNMI_NorthSea])
+    ######################################################################################################
+    # Filtrar estaciones según el valor de STN
+    if STN == 'all':
+        estaciones_seleccionadas = coords_KNMI_land_and_sea.index
+    elif isinstance(STN, (list, tuple, np.ndarray)):  # Si STN es una lista o un array de estaciones
+        estaciones_seleccionadas = [stn for stn in STN if stn in coords_KNMI_land_and_sea.index]
+    else:  # Si STN es una única estación
+        estaciones_seleccionadas = [STN] if STN in coords_KNMI_land_and_sea.index else []
 
+    if len(estaciones_seleccionadas) == 0:
+        raise ValueError("No se han encontrado estaciones válidas para el cálculo.")
+    ######################################################################################################
     fechas = []
     # Iterar sobre los nombres de archivos y extraer la fecha y la hora
     for archivo in file_names_WRF:
@@ -219,7 +249,7 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name):
         fechas.append(fecha_hora_dt)
 
     # Crear DataFrame vacío que rellenare con los valores de la malla de wrf más cercana a las coordenadas de los puntos
-    df_resultado_WRF = pd.DataFrame(index = fechas, columns = coords_KNMI_land_and_sea.index)
+    df_resultado_WRF = pd.DataFrame(index = fechas, columns = estaciones_seleccionadas)
 
 
 
@@ -243,11 +273,17 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name):
             data_WRF_U = pd.DataFrame()
             data_WRF_V = pd.DataFrame()
 
-        for STN_value_land in coords_KNMI_land_and_sea.index:
+        for STN_value_land in estaciones_seleccionadas:
+            # breakpoint()
             # Coordenadas de la estación KNMI
-            stn_lat = coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)']
-            stn_lon = coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)']
-            
+            if len(estaciones_seleccionadas) == 1:
+                stn_lat = coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)']
+                stn_lon = coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)']
+            else:
+                stn_lat = coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)']
+                stn_lon = coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)']
+
+
             # Obtener las coordenadas de latitud y longitud del archivo WRF
             variable, lats, lons, times = process_wrf_file(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', time_idx=None)
             lat_min, lat_max = float(lats.min()), float(lats.max())  # XLAT contiene las latitudes del WRF
@@ -304,7 +340,8 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name):
 
             else:
                 print(f"La estación {STN_value_land} con latitud {stn_lat} y longitud {stn_lon} está fuera del dominio WRF.")
-
+    df_resultado_WRF.index = pd.to_datetime(df_resultado_WRF.index)
+    df_resultado_WRF.index = df_resultado_WRF.index.tz_localize('UTC')
     return df_resultado_WRF, coords_KNMI_land_and_sea
 
 

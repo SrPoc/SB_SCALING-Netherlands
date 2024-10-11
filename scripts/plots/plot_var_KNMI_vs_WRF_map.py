@@ -33,7 +33,7 @@ var_units = 'ºC'
 sim_name = 'PrelimSim_I'
 domain_number = '2'
 
-cbar_lims_both=(8, 12) #serán iguales para los dos, KNMI y WRF
+cbar_lims_both=(11, 25) #serán iguales para los dos, KNMI y WRF
 
 
 path_wrf_files = Path.cwd().joinpath(f'data/Models/WRF/{sim_name}')
