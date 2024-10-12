@@ -208,6 +208,7 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
     ###
 
     ds = xr.open_dataset(f'{ruta}/{file_names_WRF[0]}', engine='netcdf4')
+
     WRF_var_names = ['WD', 'Q', 'WS']
     WRF_var_names.extend(list(ds.variables.keys())) # PARA WS  Y Q LA METODOLOGIA ES DISTINTA
 
@@ -215,6 +216,7 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
         print('La variable elegida es válida.')
     else:
         raise ValueError("La variable elegida no es válida. Debe estar contenida entre las variables del wrfout...")
+
 
 
     ### LEO LOS FICHEROS DE LAS COORDENADAS DE LAS ESTACIONES
@@ -328,8 +330,12 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
                     # Añadir valor extraído al DataFrame
                     df_resultado_WRF.loc[time_str, STN_value_land] = valor_extraido
 
-                else:  # Temperatura
-                    valor_extraido = (float(extract_point_data(f'{ruta}/wrfout_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', var_name, stn_lat, stn_lon, time_idx=None)))
+                else:  
+                    
+                    pre_valor_extraido = extract_point_data(f'{ruta}/wrfout_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', var_name, stn_lat, stn_lon, time_idx=None)
+                    if 'soil_layers_stag' in pre_valor_extraido.dims:
+                        post_valor_extraido = pre_valor_extraido.sel(soil_layers_stag=0).item()
+                    valor_extraido = (float(post_valor_extraido))
 
                     # Si la estación (columna) aún no existe, añadirla
                     if STN_value_land not in df_resultado_WRF.columns:

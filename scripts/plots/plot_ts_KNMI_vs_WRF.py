@@ -11,6 +11,7 @@ import os
 import math
 import matplotlib.dates as mdates
 from datetime import timezone
+import netCDF4 as nc
 
 # Obtener la ruta actual del proyecto (ruta raíz SB_SCALING-Netherlands)
 ruta_actual = Path.cwd()  # Esto te lleva a SB_SCALING-Netherlands
@@ -21,16 +22,7 @@ from processing_data import generate_KNMI_df_STNvsDATETIME, generate_WRF_df_STNv
 
 
 
-var_name = 'T'
-
-if var_name == 'T':
-    # PARAMETERS KNMI
-    var_name_land = 'T'
-    var_name_sea = 'TZ'
-    # PARAMETERS WRF
-    var_name_WRF_land = 'T2'
-    var_name_WRF_sea = 'TSK'
-    factor_kelvin_to_celsius = 273
+var_name = 'Q'
 
 # PARAMETERS KNMI
 var_units = 'ºC'
@@ -43,15 +35,51 @@ domain_number = '2'
 
 cbar_lims_both=(11, 25) #serán iguales para los dos, KNMI y WRF
 
+sea_station_code = 320
+land_station_code = 215
 
 path_wrf_files = Path.cwd().joinpath(f'data/Models/WRF/{sim_name}')
 
-df_resultado_WRF_land, _ = generate_WRF_df_STNvsDATETIME(domain_number, sim_name, date_of_interest, var_name_WRF_land, STN = 320)
-df_resultado_WRF_sea, _ = generate_WRF_df_STNvsDATETIME(domain_number, sim_name, date_of_interest, var_name_WRF_sea, STN = 215)
+if var_name == 'T':
+    # PARAMETERS KNMI
+    var_name_land = 'T'
+    var_name_sea = 'TZ'
+    # PARAMETERS WRF
+    var_name_WRF_land = 'T2'
+    var_name_WRF_sea = 'TSK'
+    factor_kelvin_to_celsius = 273
+else: 
+    var_name_land = var_name
+    var_name_sea = var_name
+    var_name_WRF_land = var_name
+    var_name_WRF_sea = var_name
 
-df_resultado_KNMI_land, coords_KNMI_land_and_sea = generate_KNMI_df_STNvsDATETIME(date_of_interest, var_name_land,STN=320)
-df_resultado_KNMI_sea, _ = generate_KNMI_df_STNvsDATETIME(date_of_interest, var_name_sea,STN=215)
+    factor_kelvin_to_celsius = 0
 
+df_resultado_WRF_land, _ = generate_WRF_df_STNvsDATETIME(domain_number, sim_name, date_of_interest, var_name_WRF_land, STN = land_station_code)
+df_resultado_WRF_sea, _ = generate_WRF_df_STNvsDATETIME(domain_number, sim_name, date_of_interest, var_name_WRF_sea, STN = sea_station_code)
+
+df_resultado_KNMI_land, coords_KNMI_land_and_sea = generate_KNMI_df_STNvsDATETIME(date_of_interest, var_name_land,STN=land_station_code)
+df_resultado_KNMI_sea, _ = generate_KNMI_df_STNvsDATETIME(date_of_interest, var_name_sea,STN=sea_station_code)
+
+dataset = nc.Dataset('/home/poc/Documentos/Projects/SB_SCALING-Netherlands/data/Obs/Cabauw/cesar_soil_water_lb1_t10_v1.1_201407.nc', mode='r')
+
+# Extrae los tiempos
+time = dataset.variables['time'][:]
+# Convierte los tiempos a un formato legible (si están en epoch time)
+time_units = dataset.variables['time'].units
+time_readable = nc.num2date(time, time_units)
+
+# Extrae la humedad del suelo a 0.03 m
+TH03 = dataset.variables['TH03'][:]  # Soil water content at 0.03 m depth
+
+# Cierra el dataset
+dataset.close()
+
+# Muestra los tiempos y los datos de humedad del suelo
+print("Tiempos:", time_readable)
+print("Humedad del suelo a 0.03 m (TH03) [m3/m3]:", TH03)
+breakpoint()
 
 def rellenar_huecos(df, metodo='interpolacion'):
     """
@@ -78,8 +106,7 @@ def rellenar_huecos(df, metodo='interpolacion'):
         # Asume que el valor del método es un número y rellena los huecos con ese valor
         return df.fillna(metodo)
 
-sea_station_code = 320
-land_station_code = 215
+
 # df_resultado_KNMI_land.index = pd.to_datetime(df_resultado_KNMI_land.index, errors='coerce')
 
 # df_rellenado_sea_station = rellenar_huecos(df_resultado_KNMI_sea[sea_station_code], metodo='interpolacion')
