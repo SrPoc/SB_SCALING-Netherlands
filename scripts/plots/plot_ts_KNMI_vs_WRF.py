@@ -22,7 +22,7 @@ from processing_data import generate_KNMI_df_STNvsDATETIME, generate_WRF_df_STNv
 
 
 
-var_name = 'Q'
+var_name = 'T'
 
 # PARAMETERS KNMI
 var_units = 'ºC'
@@ -139,10 +139,9 @@ plt.legend(loc='upper left', fontsize = 12)
 ax = plt.gca()  # Obtener el eje actual
 time_fmt = mdates.DateFormatter('%H')
 
-# Set the locator and formatter for the x-axis ticks
-# Major ticks por hora
+ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))  # Cada 1 hora
 
-# # Minor ticks cada media hora
+# Minor ticks cada media hora
 ax.xaxis.set_minor_locator(mdates.MinuteLocator(interval=30))  # Cada 30 minutos
 ax.xaxis.set_major_formatter(time_fmt)
 
@@ -153,4 +152,5 @@ ax.grid(True)
 
 # Mostramos la gráfica
 plt.tight_layout()
+breakpoint()
 plt.savefig(f'{ruta_actual}/figs/ts/Obs-vs-Model/{var_name}_Land-vs-Sea_KNMI-vs-WRF.png')

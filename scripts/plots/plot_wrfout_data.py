@@ -21,7 +21,7 @@ sys.path.append(str(ruta_actual / 'scripts' / 'import'))
 # Importar las funciones desde 'import_ECMWF_IFS_data.py'
 from import_wrfout_data import process_wrf_file
 
-def plot_wrf_variable(variable, lats, lons, fig, subplot_idx, cbar_lims):
+def plot_wrf_variable(variable, lats, lons, fig, subplot_idx, cbar_lims, cmap = 'Reds'):
     """
     Genera un gráfico de una variable WRF y lo añade a un subplot específico en la figura.
     
@@ -30,6 +30,7 @@ def plot_wrf_variable(variable, lats, lons, fig, subplot_idx, cbar_lims):
     - fig: La figura de Matplotlib donde se añadirá el subplot.
     - subplot_idx: El índice del subplot (para posicionar dinámicamente).
     - cbar_lims: tupla que contenga los limites superior e inferior de los valores del colorbar
+    - cmap: string representing the colormap
     """
     
     # Añadimos un nuevo subplot a la figura en la posición indicada (subplot_idx)
@@ -37,7 +38,7 @@ def plot_wrf_variable(variable, lats, lons, fig, subplot_idx, cbar_lims):
     
     
     # Dibujamos la variable como un mapa de contornos en el eje proporcionado
-    contour = ax.contourf(to_np(lons), to_np(lats), to_np(variable), 10, cmap='Reds', transform=ccrs.PlateCarree(), extend='both',  levels = np.linspace(np.round(cbar_lims[0],0), np.round(cbar_lims[1],0), 20))#, vmin=cbar_lims[0], vmax=cbar_lims[1])
+    contour = ax.contourf(to_np(lons), to_np(lats), to_np(variable), 10, cmap=cmap, transform=ccrs.PlateCarree(), extend='both',  levels = np.linspace(np.round(cbar_lims[0],0), np.round(cbar_lims[1],0), 20))#, vmin=cbar_lims[0], vmax=cbar_lims[1])
     
     # Añadimos las características geográficas
     ax.coastlines()
@@ -73,7 +74,7 @@ def calculate_wind_speed_direction(u, v):
     return ws, wd
 
 
-def plot_wind(variable_u, variable_v, lats, lons, fig, subplot_idx, cbar_lims):
+def plot_wind(variable_u, variable_v, lats, lons, fig, subplot_idx, cbar_lims, cmap = 'Purples'):
     """
     Genera un gráfico de la velocidad y dirección del viento.
     
@@ -96,7 +97,7 @@ def plot_wind(variable_u, variable_v, lats, lons, fig, subplot_idx, cbar_lims):
     ws, wd = calculate_wind_speed_direction(u_np, v_np)
     
     # Dibujar la velocidad del viento como contorno
-    contour = ax.contourf(to_np(lons), to_np(lats), ws, 10, cmap='Purples', transform=ccrs.PlateCarree(),extend='both', levels = np.linspace(np.round(cbar_lims[0],0), np.round(cbar_lims[1],0), 20))#, vmin=cbar_lims[0], vmax=cbar_lims[1])
+    contour = ax.contourf(to_np(lons), to_np(lats), ws, 10, cmap=cmap, transform=ccrs.PlateCarree(),extend='both', levels = np.linspace(np.round(cbar_lims[0],0), np.round(cbar_lims[1],0), 20))#, vmin=cbar_lims[0], vmax=cbar_lims[1])
     
     # Añadir características geográficas
     ax.coastlines()
@@ -174,14 +175,15 @@ if __name__ == "__main__":
     for file_name in sorted(filename for filename in os.listdir(file_path) if filename.startswith("wrfout_d02_2014-07-16")):
         # Llamamos a la función para procesar el archivo WRF
         
-        variable, lats, lons, times = process_wrf_file(f'{file_path}/{file_name}', var_name, time_idx=None)
-
+        temperature, lats, lons, times = process_wrf_file(f'{file_path}/{file_name}', 'TSK', time_idx=None)
+        temperature_celsius = temperature-273
+        temperature_celsius.attrs['units'] = 'ºC'
         # Crear una figura con varios subplots
-        fig = plt.figure(figsize=(15,17))
+        fig = plt.figure(figsize=(17,9))
 
         # Plotear la variable de temperatura
 
-        plot_wrf_variable(variable-273, lats, lons, fig, subplot_idx=311, cbar_lims=(283-273, 300-273))
+        plot_wrf_variable(temperature_celsius, lats, lons, fig, subplot_idx=221, cbar_lims=(283-273, 313-273))
         
 
 
@@ -190,11 +192,24 @@ if __name__ == "__main__":
         v10, _, _, _ = process_wrf_file(f'{file_path}/{file_name}', "V10")
 
         # Dibujar el gráfico de viento
-        plot_wind(u10, v10, lats, lons, fig, subplot_idx=312, cbar_lims=(0, 8))  # 1 fila, 2 columnas, posición 2
+        plot_wind(u10, v10, lats, lons, fig, subplot_idx=222, cbar_lims=(0, 8))  # 1 fila, 2 columnas, posición 2
 
         variable2, lats, lons, times = process_wrf_file(f'{file_path}/{file_name}', 'PBLH', time_idx=None)
-        plot_wrf_variable(variable2, lats, lons, fig, subplot_idx=313, cbar_lims=(0, 1800))
+        plot_wrf_variable(variable2, lats, lons, fig, subplot_idx=223, cbar_lims=(0, 1800), cmap = 'RdPu')
 
+        variable_T2, lats, lons, times = process_wrf_file(f'{file_path}/{file_name}', 'T2', time_idx=None)
+        variable_PSFC, _, _, _ = process_wrf_file(f'{file_path}/{file_name}', 'PSFC', time_idx=None)
+        variable_td2, _, _, _ = process_wrf_file(f'{file_path}/{file_name}', 'td2', time_idx=None)
+
+        e_vapor = 6.112* np.exp(17.67*(variable_td2)/((variable_td2)+243.5))
+
+        hum_esp = 0.622*(e_vapor)/((variable_PSFC/100)-(0.378*e_vapor))*1000
+
+        hum_esp.name = "Specific Humidity"
+        hum_esp.attrs['units'] = 'g/kg'
+        # breakpoint()
+
+        plot_wrf_variable(hum_esp, lats, lons, fig, subplot_idx=224, cbar_lims=(7, 13), cmap = 'Greens')
 
     #     # Mostrar la figura completa
 
@@ -209,15 +224,15 @@ if __name__ == "__main__":
         # plt.tight_layout()
         plt.tight_layout()
         # Guardamos la figura en un archivo (si es necesario)
-        fig.savefig(Path.cwd() / 'figs' / 'maps' / 'T-wind_subplot' / '2014-07-16'/ f'T-wind_subplot_{file_name[11:-3]}.png', bbox_inches='tight')
+        fig.savefig(Path.cwd() / 'figs' / 'maps' / '2014-07-16'/ 'WRF' / f'AllVars_subplot_{file_name[11:-3]}.png', bbox_inches='tight')
         plt.close()
         #CREAR UN GIF DE TODAS LAS IMAGENES GENERADAS
         # Abrimos las imágenes y las convertimos a formato de PIL
         
-    path_to_figs = Path.cwd().joinpath('figs/maps/T-wind_subplot/2014-07-16')
+    path_to_figs = Path.cwd().joinpath('figs/maps/2014-07-16/WRF/')
 
-    images = [Image.open(png) for png in sorted(list(path_to_figs.glob('T-wind_subplot_*.png')))]
+    images = [Image.open(png) for png in sorted(list(path_to_figs.glob('AllVars_subplot_*.png')))]
     breakpoint()
     # Guardamos las imágenes en formato GIF
-    images[0].save(f'{path_to_figs}/T-wind_subplot_{file_name[11:-6]}.gif', save_all=True, append_images=images[1:], optimize=False, duration=600, loop=0)
+    images[0].save(f'{path_to_figs}/AllVars_subplot_{file_name[11:-6]}.gif', save_all=True, append_images=images[1:], optimize=False, duration=1800, loop=0)
 

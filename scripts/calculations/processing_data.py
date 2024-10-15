@@ -335,6 +335,8 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
                     pre_valor_extraido = extract_point_data(f'{ruta}/wrfout_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', var_name, stn_lat, stn_lon, time_idx=None)
                     if 'soil_layers_stag' in pre_valor_extraido.dims:
                         post_valor_extraido = pre_valor_extraido.sel(soil_layers_stag=0).item()
+                    else: 
+                        post_valor_extraido = pre_valor_extraido
                     valor_extraido = (float(post_valor_extraido))
 
                     # Si la estación (columna) aún no existe, añadirla

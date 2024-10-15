@@ -134,7 +134,7 @@ for filename in filenames:
     # Añadir quivers para las componentes U y V del viento
     # quiver_skip = (slice(None, None, 5), slice(None, None, 5))  # Esto ajusta la densidad de quivers (cada 5 puntos)
     quiver = ax.quiver(np.arange(coord_pairs.shape[0])[::plot_every], to_np(u_cross["vertical"]), 
-            u_cross_np_filtered, to_np(w_cross)[:, ::plot_every], pivot='mid', color='black', scale=50)
+            u_cross_np_filtered, to_np(w_cross)[:, ::plot_every]*5, pivot='mid', color='black', scale=50)
 
     # Definir el terreno (por ejemplo, donde sea mayor que un umbral considerarlo tierra)
     ocean_mask = to_np(terrain_transect) == 0  # Considerar océano cuando el terreno es 0
