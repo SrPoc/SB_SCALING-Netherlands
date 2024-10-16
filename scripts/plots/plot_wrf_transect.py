@@ -70,7 +70,7 @@ for filename in filenames:
     u = getvar(ds, "ua", units="m/s")  # Componente U del viento (m/s)
     v = getvar(ds, "va", units="m/s")  # Componente V del viento (m/s)
     w = getvar(ds, "wa", units="m/s")  # Componente V del viento (m/s)
-
+    breakpoint()
     # Define los puntos de inicio y fin del transecto
     start_point = CoordPair(lat=coords_KNMI_land_and_sea.loc[stn_1]['LAT(north)'], 
                             lon=coords_KNMI_land_and_sea.loc[stn_1]['LON(east)'])

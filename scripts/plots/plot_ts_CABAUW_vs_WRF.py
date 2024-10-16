@@ -28,7 +28,7 @@ from processing_data import generate_KNMI_df_STNvsDATETIME, generate_WRF_df_STNv
 var_name = 'Q'
 
 # PARAMETERS KNMI
-var_name_CABAUW = 'TH03'
+var_name_CABAUW = 'TH08'
 var_units = r'm^3/m^3'
 date_of_interest = '2014-07-16'
 
@@ -74,13 +74,13 @@ time_readable = nc.num2date(time, time_units)
 python_dates = [datetime(d.year, d.month, d.day, d.hour, d.minute, d.second, d.microsecond) for d in time_readable]
 
 # Extrae la humedad del suelo a 0.03 m
-TH03 = dataset.variables[var_name_CABAUW][:]  # Soil water content at 0.03 m depth
+TH08 = dataset.variables[var_name_CABAUW][:]  # Soil water content at 0.03 m depth
 
 # Cierra el dataset
 dataset.close()
 
 
-df = pd.DataFrame(data={"TH03": TH03}, index=python_dates)
+df = pd.DataFrame(data={"TH08": TH08}, index=python_dates)
 # Muestra los tiempos y los datos de humedad del suelo
 
 
@@ -123,7 +123,7 @@ plt.figure(figsize=(10, 6))
 
 
 plt.plot(df_resultado_WRF_land.index, df_resultado_WRF_land, label=f'SH20 STN {STR_CABAUW} (WRF nearest)', color = 'blue')
-plt.plot(df.loc['2014-07-16'].index, df.loc['2014-07-16'], label=f'TH03 Cabauw', color = 'green')
+plt.plot(df.loc['2014-07-16'].index, df.loc['2014-07-16'], label=f'TH08 Cabauw', color = 'green')
 
 # Añadimos etiquetas y título
 plt.xlabel('Hour (UTC)')
@@ -152,6 +152,7 @@ ax.grid(True)
 # Mostramos la gráfica
 plt.tight_layout()
 plt.savefig('figs/ts/Obs-vs-Model/SoilMoisture_WRF-vs-Cabauw_2014-07-16.png')
+plt.close()
 ###############
 
 
@@ -166,8 +167,8 @@ plt.figure(figsize=(10, 6))
 # _rellenado_land_station.index, df_rellenado_land_station, color = 'red', label = 'Filled missing data')
 
 
-plt.plot(df_resultado_WRF_land_EF.index, df_resultado_WRF_land_EF, label=f'STN {STR_CABAUW} (WRF nearest)', color = 'blue')
-plt.plot(EF_data.loc['2014-07-16'].index, EF_data.loc['2014-07-16'], label=f'Cabauw', color = 'green')
+plt.plot(df_resultado_WRF_land_BR.index, df_resultado_WRF_land_BR, label=f'STN {STR_CABAUW} (WRF nearest)', color = 'blue')
+plt.plot(BowenR_data.loc['2014-07-16'].index, BowenR_data.loc['2014-07-16'], label=f'Cabauw', color = 'green')
 
 # Añadimos etiquetas y título
 plt.xlabel('Hour (UTC)')
@@ -190,6 +191,7 @@ ax.xaxis.set_major_formatter(time_fmt)
 
 # Ajuste automático del formato de fecha en el eje x
 ax.grid(True)
+ax.set_ylim([-2, 7])
 
 
 
