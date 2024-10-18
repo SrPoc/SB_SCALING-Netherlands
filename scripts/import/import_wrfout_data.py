@@ -14,7 +14,6 @@ SCRIPT QUE CONTIENE FUNCIONES PARA LEER LOS DATOS DEL WRFOUT DE DISTINTAS FORMAS
 - Datos en un transecto (lat1, lon1)->(lat2, lon2) --> extract_transect
 '''
 
-
 def process_wrf_file(file_path, var_name, time_idx=None):
     """
     Abre un archivo WRF, extrae una variable y los tiempos, y luego cierra el archivo.
@@ -41,8 +40,30 @@ def process_wrf_file(file_path, var_name, time_idx=None):
 
         # Extrae los tiempos disponibles
         times = extract_times(dataset, timeidx=None)
-        
+
+        # Si es U10 o V10, aplicamos las correcciones correspondientes
+        # Mas info: https://www-k12.atmos.washington.edu/~ovens/wrfwinds.html 
+        if var_name in ['U10', 'V10']:
+            cosalpha = getvar(dataset, 'COSALPHA', timeidx=(ALL_TIMES if time_idx is None else time_idx))
+            sinalpha = getvar(dataset, 'SINALPHA', timeidx=(ALL_TIMES if time_idx is None else time_idx))
+
+            if var_name == 'U10':
+                # Obtener V10 para la corrección
+                v10 = getvar(dataset, 'V10', timeidx=(ALL_TIMES if time_idx is None else time_idx))
+
+                # Aplicar la corrección de U10 en m/s
+                variable = variable * cosalpha - v10 * sinalpha
+
+            elif var_name == 'V10':
+                # Obtener U10 para la corrección
+                u10 = getvar(dataset, 'U10', timeidx=(ALL_TIMES if time_idx is None else time_idx))
+
+                # Aplicar la corrección de V10 en m/s
+                variable = u10 * sinalpha + variable * cosalpha
+
+        # Retornar la variable corregida (si aplica), junto con las coordenadas y tiempos
         return variable, lats, lons, times
+        
     
     except FileNotFoundError:
         print(f"El archivo {file_path} no se encontró.")
@@ -115,6 +136,80 @@ def extract_point_data(file_path, var_name, lat_point, lon_point, time_idx=None,
         point_data = variable.isel(south_north=y_idx, west_east=x_idx)
 
     return point_data
+
+def extract_mean_around_point(file_path, var_name, lat_point, lon_point, time_idx=None, level_idx=None):
+    """
+    Extrae los datos de una variable en el punto más cercano y los 9 puntos adyacentes a unas coordenadas específicas
+    (latitud y longitud) y opcionalmente para un nivel y tiempo específicos, si existen. Luego calcula la media.
+
+    Parámetros:
+    - file_path (str): la ruta del archivo WRF.
+    - var_name (str): el nombre de la variable que se desea extraer.
+    - lat_point (float): la latitud del punto de interés.
+    - lon_point (float): la longitud del punto de interés.
+    - time_idx (int o None): el índice de tiempo para extraer (si es None, se extraen todos los tiempos).
+    - level_idx (int o None): el índice de nivel para extraer (si es None, se extraen las variables de superficie).
+
+    Retorno:
+    - mean_data (float o None): la media de los datos en los puntos seleccionados.
+    - times (xarray.DataArray o None): los tiempos correspondientes, si están disponibles.
+    """
+    # Abre el archivo y extrae la variable y coordenadas usando process_wrf_file
+    variable, lats, lons, times = process_wrf_file(file_path, var_name, time_idx)
+
+    if variable is None:
+        print("No se pudo extraer la variable.")
+        return None, None
+
+    # Abre el archivo WRF y usa ll_to_xy para encontrar el índice del punto más cercano
+    dataset = Dataset(file_path)
+    x_idx, y_idx = ll_to_xy(dataset, lat_point, lon_point)
+    dataset.close()
+    
+    # Convertir los índices a enteros si es necesario
+    x_idx = int(x_idx) if isinstance(x_idx, (float, np.float64, np.int32, np.int64)) else x_idx.item()
+    y_idx = int(y_idx) if isinstance(y_idx, (float, np.float64, np.int32, np.int64)) else y_idx.item()
+
+    # Asegurarse de que los índices estén dentro de los límites y convertirlos a enteros
+    x_min = max(0, x_idx - 1)
+    x_max = min(x_idx + 2, variable.sizes['west_east'])  # min para no salir de los límites
+    y_min = max(0, y_idx - 1)
+    y_max = min(y_idx + 2, variable.sizes['south_north'])
+
+    x_range = slice(x_min, x_max)
+    y_range = slice(y_min, y_max)
+
+
+    # Seleccionar los datos en el área 3x3 alrededor del punto más cercano
+    if 'Time' in variable.dims and 'bottom_top' in variable.dims:  # Caso con tiempo y niveles
+        if time_idx is not None and level_idx is not None:
+            data_subset = variable.isel(south_north=y_range, west_east=x_range, Time=time_idx, bottom_top=level_idx)
+        elif time_idx is not None:  # Solo tiempo especificado
+            data_subset = variable.isel(south_north=y_range, west_east=x_range, Time=time_idx)
+        elif level_idx is not None:  # Solo nivel especificado
+            data_subset = variable.isel(south_north=y_range, west_east=x_range, bottom_top=level_idx)
+        else:  # Sin nivel ni tiempo especificado
+            data_subset = variable.isel(south_north=y_range, west_east=x_range)
+
+    elif 'Time' in variable.dims:  # Caso con solo tiempo
+        if time_idx is not None:
+            data_subset = variable.isel(south_north=y_range, west_east=x_range, Time=time_idx)
+        else:
+            data_subset = variable.isel(south_north=y_range, west_east=x_range)
+
+    elif 'bottom_top' in variable.dims:  # Caso con solo niveles
+        if level_idx is not None:
+            data_subset = variable.isel(south_north=y_range, west_east=x_range, bottom_top=level_idx)
+        else:
+            data_subset = variable.isel(south_north=y_range, west_east=x_range)
+
+    else:  # Caso sin tiempo ni niveles
+        data_subset = variable.isel(south_north=y_range, west_east=x_range)
+
+    # Calcular la media de los puntos seleccionados
+    mean_data = data_subset.mean(dim=['south_north', 'west_east'])
+
+    return mean_data, times
 
 
 def extract_transect(file_path, var_name, lat1, lon1, lat2, lon2, time_idx=None, level_idx=None):

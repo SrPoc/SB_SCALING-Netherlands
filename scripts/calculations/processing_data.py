@@ -196,7 +196,7 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
     # Agregar la ruta del directorio 'import' donde están los scripts de importación
     sys.path.append(str(ruta_actual / 'scripts' / 'import'))
 
-    from import_wrfout_data import extract_point_data, process_wrf_file
+    from import_wrfout_data import extract_point_data, process_wrf_file, extract_mean_around_point
 
     ### PATHS
     ruta_coords_KNMI_land = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_land.csv'
@@ -316,9 +316,9 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
 
                 elif var_name == 'Q':  # Humedad específica
                     # Obtener temperatura, punto de rocío y presión para calcular humedad específica
-                    t_value_WRF = (float(extract_point_data(f'{ruta}/wrfout_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', stn_lat, stn_lon, time_idx=None))-273)
-                    p_value_WRF = float(extract_point_data(f'{ruta}/wrfout_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'PSFC', stn_lat, stn_lon, time_idx=None))/100
-                    td_value_WRF = float(extract_point_data(f'{ruta}/wrfout_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'td2', stn_lat, stn_lon, time_idx=None))
+                    t_value_WRF,_ = (float(extract_mean_around_point(f'{ruta}/wrfout_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', stn_lat, stn_lon, time_idx=None))-273)
+                    p_value_WRF,_ = float(extract_mean_around_point(f'{ruta}/wrfout_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'PSFC', stn_lat, stn_lon, time_idx=None))/100
+                    td_value_WRF,_ = float(extract_mean_around_point(f'{ruta}/wrfout_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'td2', stn_lat, stn_lon, time_idx=None))
 
                     e_vapor = 6.112* math.exp(17.67*td_value_WRF/(td_value_WRF+243.5))
                     valor_extraido = 0.622*(e_vapor)/(p_value_WRF-(0.378*e_vapor)) *1000
@@ -332,7 +332,7 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
 
                 else:  
                     
-                    pre_valor_extraido = extract_point_data(f'{ruta}/wrfout_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', var_name, stn_lat, stn_lon, time_idx=None)
+                    pre_valor_extraido, _ = extract_mean_around_point(f'{ruta}/wrfout_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', var_name, stn_lat, stn_lon, time_idx=None)
                     if 'soil_layers_stag' in pre_valor_extraido.dims:
                         post_valor_extraido = pre_valor_extraido.sel(soil_layers_stag=0).item()
                     else: 

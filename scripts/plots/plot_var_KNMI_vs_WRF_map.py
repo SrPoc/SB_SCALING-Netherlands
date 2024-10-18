@@ -23,17 +23,17 @@ from import_wrfout_data import process_wrf_file
 from plot_wrfout_data import plot_wrf_variable
 
 # PARAMETERS KNMI
-var_name = 'T'
-var_units = 'ºC'
+var_name = 'Q'
+var_units = 'g/m3'
 date_of_interest = '2014-07-16'
 
 # PARAMETERS WRF
-var_name_WRF = 'T2'
-var_units = 'ºC'
+var_name_WRF = 'Q'
+var_units = 'g/m3'
 sim_name = 'PrelimSim_I'
 domain_number = '2'
 
-cbar_lims_both=(11, 25) #serán iguales para los dos, KNMI y WRF
+cbar_lims_both=(8, 12) #serán iguales para los dos, KNMI y WRF
 
 
 path_wrf_files = Path.cwd().joinpath(f'data/Models/WRF/{sim_name}')
@@ -64,7 +64,7 @@ for str_time, wind_direction_hour in df_resultado_KNMI.iterrows():
     # ax = plt.axes(projection=ccrs.PlateCarree())
     ##################################################################
     # TODO LO QUE PONGA AQUI PUEDE DAR LUGAR A ERROR
-
+    str_time = str_time.strftime('%Y-%m-%d %H:%M:%S %Z')
     if var_name == 'Q':
         
         variable_T2, lats, lons, times = process_wrf_file(f'{path_wrf_files}/wrfout_d0{domain_number}_{str_time.split()[0]}_{str_time.split()[1].split(":")[0]}.nc', 'T2', time_idx=None)
@@ -75,7 +75,7 @@ for str_time, wind_direction_hour in df_resultado_KNMI.iterrows():
 
         variable = 0.622*(e_vapor)/((variable_PSFC/100)-(0.378*e_vapor))*1000
     else:
-
+        
         variable, lats, lons, times = process_wrf_file(f'{path_wrf_files}/wrfout_d0{domain_number}_{str_time.split()[0]}_{str_time.split()[1].split(":")[0]}.nc', var_name_WRF, time_idx=None)
         if var_name_WRF == 'T2':
             variable = variable -273
