@@ -162,6 +162,7 @@ dependencies:
   - re2=2023.09.01
   - readline=8.2
   - s2n=1.5.3
+  - scipy=1.13.1
   - setuptools=75.1.0
   - shapely=2.0.6
   - six=1.16.0
