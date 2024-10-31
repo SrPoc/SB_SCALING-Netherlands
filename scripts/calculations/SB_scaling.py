@@ -116,7 +116,28 @@ df_WS_data_date = df_WS.loc['2014-07-16']
 df_WS_data_date_resampled = df_WS_data_date.resample('10min').interpolate()
 
 # Filtrar los datos para solo valores de H > 10
-df_filtered = df_wT_data_date[df_wT_data_date['H'] > 10]
+df_wT_data_date_filtered = df_wT_data_date_resampled[df_wT_data_date_resampled['H'] > 2]
+fig, ax1 = plt.subplots(figsize=(10, 6))
+ax1.plot(df_wT_data_date_filtered.index, df_wT_data_date_filtered, label="Sensible heat flux", color="blue")
+ax1.plot(df_wT_data_date_resampled.index, df_wT_data_date_resampled, label="Sensible heat flux", color="blue")
+ax1.axhline(y=0, color='gray', linestyle='--', linewidth=1)
+ax1.grid(True)
+ax1.set_xlabel("Hour (UTC)")
+ax1.set_ylabel("º", color="blue")
+ax1.tick_params(axis='y', labelcolor="blue")
+
+
+# Rotar etiquetas del eje x para mejor legibilidad
+time_fmt = mdates.DateFormatter('%H')  # Formato para el eje de tiempo
+ax1.xaxis.set_major_formatter(time_fmt)
+
+# Configurar los ticks menores cada 30 minutos
+ax1.xaxis.set_minor_locator(mdates.MinuteLocator(interval=30))
+
+plt.title("SH flux from Cabauw")
+# Guardar el gráfico
+plt.savefig("/home/poc/Documentos/Projects/SB_SCALING-Netherlands/figs/SB_scaling/Sens_Hflux_Cabauw.png")
+
 
 
 # Crear el gráfico de df_filtered donde H > 10
@@ -125,15 +146,16 @@ ax1.plot(df_WD_data_date_resampled.index, df_WD_data_date_resampled, label="WD",
 ax2 = ax1.twinx()
 ax2.plot(df_WS_data_date_resampled.index, df_WS_data_date_resampled, label="WS", color="r")
 
-ax1.set_xlabel("Tiempo")
+ax1.set_xlabel("Hour (UTC)")
 ax1.set_ylabel("º", color="blue")
 ax1.tick_params(axis='y', labelcolor="blue")
 ax1.legend()
-
+ax1.grid(axis = 'x')
+ax1.legend(loc="upper left")
 
 ax2.set_ylabel("m/s", color="r")
 ax2.tick_params(axis='y', labelcolor="r")
-ax2.legend(loc="upper left")
+ax2.legend(loc="upper right")
 
 # Rotar etiquetas del eje x para mejor legibilidad
 time_fmt = mdates.DateFormatter('%H')  # Formato para el eje de tiempo
@@ -144,7 +166,7 @@ ax1.xaxis.set_minor_locator(mdates.MinuteLocator(interval=30))
 
 plt.title("Wind from Cabauw")
 # Guardar el gráfico
-plt.savefig("/home/poc/Documentos/Projects/SB_SCALING-Netherlands/figs/Wind_Cabauw_2014-07-16.png")
+plt.savefig("/home/poc/Documentos/Projects/SB_SCALING-Netherlands/figs/SB_scaling/Wind_Cabauw_2014-07-16.png")
 
 
 ##### CALCULO DE H (INTEGRAL DEL FLUJO DE CALOR SENSIBLE EN SUPERFICIE DESDE EL INICIO DEL FLUJO POSITIVO HASTA LA LLEGADA DE LA BRISA)
@@ -200,7 +222,7 @@ print('############################################')
 
 
 #################################################################
-##### Calculo de T_0 y N
+##### Calculo de T_0, N y U_SB (este último siguiendo la metodología en Porson et al 2007)
 # Cargar el archivo NetCDF
 dataset = nc.Dataset('/home/poc/Documentos/Projects/SB_SCALING-Netherlands/data/Obs/Cabauw/cesar_tower_meteo_lc1_t10_v1.0_201407.nc')
 
@@ -215,7 +237,49 @@ indices_dia = np.where((fechas >= pd.Timestamp('2014-07-16')) & (fechas < pd.Tim
 
 # Extraer la temperatura (TA) y altura (z)
 temperatura = dataset.variables['TA'][indices_dia,:]  # Temperatura en Kelvin
-altura = dataset.variables['z'][:]        # Altura en metros
+WD_tower = dataset.variables['D'][indices_dia,:]
+WS_tower = dataset.variables['F'][indices_dia,:]
+TA_tower = dataset.variables['TA'][indices_dia,:]
+
+altura = dataset.variables['z'][:] # Altura en metros
+
+
+
+## Calculo U_SB siguiendo la metodología en Porson et al,. 2007:
+# Calcular la componente U en cada punto en el tiempo y en altura
+Uwind_tower = WS_tower * np.cos(np.radians(WD_tower))  # Convertir D a radianes y calcular U
+# Encontrar la altura con el mínimo valor de U para cada paso de tiempo
+# Crear un arreglo para almacenar los valores de U_sb en cada paso de tiempo
+# Crear una lista para almacenar los valores de U_sb con un índice de tiempo
+U_sb_values = []
+
+# Iterar sobre cada paso temporal
+for i in range(Uwind_tower.shape[0]):
+    # Invertir el orden de las alturas y las velocidades para calcular desde el nivel más bajo
+    U_invertido = Uwind_tower[i, ::-1]  # Invertimos el array de U en la dirección de altura
+    alturas_invertidas = altura[::-1]  # Invertimos el array de alturas
+    
+    # Encontrar el índice de la altura con el mínimo valor de U (excluyendo la superficie original)
+    idx_min = np.argmin(U_invertido[1:]) + 1  # Ignoramos el nivel de la superficie (primer elemento)
+    
+    # Definir Z_sb como la altura donde U es mínimo (ascendente)
+    Z_sb = alturas_invertidas[idx_min]
+    
+    # Seleccionar los valores de U y alturas hasta Z_sb
+    U_hasta_Z_sb = U_invertido[:idx_min + 1]
+    alturas_hasta_Z_sb = alturas_invertidas[:idx_min + 1]
+
+    # Calcular los incrementos de altura (Δz) desde el nivel más bajo hasta Z_sb
+    deltas_z = np.diff(alturas_hasta_Z_sb, prepend=0)
+    
+    # Calcular U_sb usando la fórmula discreta
+    U_sb_tiempo = (1 / Z_sb) * np.sum(U_hasta_Z_sb * deltas_z)
+    U_sb_values.append(U_sb_tiempo)
+
+# Convertir los resultados a un DataFrame con el índice de tiempo
+df_U_sb = pd.DataFrame(U_sb_values, index=fechas[indices_dia], columns=['U_sb'])
+
+
 
 # Parámetros de la fórmula
 P0 = 1013.25  # Presión estándar en hPa
@@ -274,10 +338,14 @@ theta_gradient = (theta_profile_4_computation[4] - theta_profile_4_computation[-
 theta_0 = theta_profile_4_computation[-1]
 N = np.sqrt(g*abs(theta_gradient)/theta_0) # Frecuencia de Brunt-Vaisala
 
-theta_gradient_all_times = (df_Tpot_data_date_resampled[40.0] - df_Tpot_data_date_resampled[2.0])/(altura[3] - altura[-1])
-N_alltimes = np.sqrt(g*abs(theta_gradient_all_times)/theta_0)
-N_alltimes  = N_alltimes.tz_localize('UTC')
+theta_gradient_all_times = (df_Tpot_data_date_resampled[200.0] - df_Tpot_data_date_resampled[2.0])/(altura[0] - altura[-1])
+theta_gradient_all_times.index = theta_gradient_all_times.index.tz_localize('UTC')
+theta_gradient_all_times = theta_gradient_all_times.resample('10min').interpolate()
+
+N_alltimes = np.sqrt(g*abs(theta_gradient_all_times)/TA_tower.mean(axis=1))
+# N_alltimes  = N_alltimes.tz_localize('UTC')
 N_alltimes.name = 'N'
+N_alltimes = N_alltimes.resample('10min').interpolate()
 print('############################################')
 print(f'Brunt-Vaisala frecuency is represented by N = {N} s-1')
 print(f'Potential temperature at the surface is given by T_0 = {theta_0} K')
@@ -309,10 +377,95 @@ delta_T = df_WD_data_resampled['TS00'] - df_resultado_KNMI_sea[320].resample('10
 delta_T.name = 'delta_T'
 
 
+
+
 parameters = pd.concat([delta_T, H_alltimes, N_alltimes], axis=1)
 parameters['f'] = f
 parameters['omega'] = omega
 parameters['g'] = g
-parameters['T_0'] = theta_0
+parameters['T_0'] = TA_tower.mean(axis=1)
+parameters['theta_grad'] = theta_gradient_all_times
+
+parameters['u_s'] = (parameters['g'] * parameters['delta_T'])/(parameters['T_0'] * parameters['N'])
+parameters['u_sb'] = df_U_sb.values
+
+SB_scaling_data = parameters[(parameters.index > '2014-07-16 17:00:00') & (parameters.index < '2014-07-16 19:00:00')]
+
+SB_scaling_data = SB_scaling_data.copy()
+SB_scaling_data[['g', 'delta_T', 'T_0', 'N', 'H', 'f', 'omega']] = SB_scaling_data[['g', 'delta_T', 'T_0', 'N', 'H', 'f', 'omega']].apply(pd.to_numeric, errors='coerce')
+
+# Calcular los términos adimensionales
+SB_scaling_data['Pi_1'] = (SB_scaling_data['g'] * SB_scaling_data['delta_T']**2) / (SB_scaling_data['T_0'] * SB_scaling_data['N'] * SB_scaling_data['H'])
+SB_scaling_data['Pi_2'] = SB_scaling_data['f'] / SB_scaling_data['omega']
+SB_scaling_data['Pi_4'] = SB_scaling_data['N'] / SB_scaling_data['omega']
+
+
+Pi_1 = SB_scaling_data['Pi_1'].values
+Pi_2 = SB_scaling_data['Pi_2'].values
+Pi_4 = SB_scaling_data['Pi_4'].values
+ydata = (SB_scaling_data['u_sb'] / SB_scaling_data['u_s']).values
+
+
+
+
+# Definir la función de ajuste en la forma de la ecuación
+def modelo_u_sb_u_s(Pi_1, Pi_2, Pi_4, a, b, c, d):
+    return a * Pi_1**b * Pi_2**c * Pi_4**d
+
+
 breakpoint()
-#AHORA HAY QUE CALCULAR LAS FUNCIONES Y APLICAR REGRESION MULTIPLE PARA ENCONTRAR LOS VALORES DE LOS PARÁMETROS
+# Realizar el ajuste de curva no lineal
+# Inicializamos los valores de [a, b, c, d] en [1, -0.5, -1, 0.5] como ejemplo
+# Usamos lambda para pasar Pi_1, Pi_2, Pi_4 como argumentos individuales
+popt, pcov = curve_fit(lambda P, a, b, c, d: modelo_u_sb_u_s(Pi_1, Pi_2, Pi_4, a, b, c, d), 
+                       xdata=np.zeros_like(Pi_1),  # xdata es solo un marcador, no se usa realmente
+                       ydata=ydata, 
+                       p0=[0.85, -0.5, -9/4, 0.5],
+                       bounds = ([0,-4,-4,-4], [4,4,4,4]))
+# Extraer los coeficientes ajustados
+a, b, c, d = popt
+
+
+
+
+
+# Calcular los valores ajustados de u_sb/u_s usando los coeficientes ajustados
+u_sb_u_s_ajustado = a * SB_scaling_data['Pi_1']**b * SB_scaling_data['Pi_2']**c * SB_scaling_data['Pi_4']**d
+
+# Crear el gráfico de dispersión
+plt.figure(figsize=(8, 6))
+plt.scatter(u_sb_u_s_ajustado, (SB_scaling_data['u_sb'] / SB_scaling_data['u_s']), color='black')
+# plt.plot([0, max(parameters['u_sb_u_s_ajustado'])], [0, max(parameters['u_sb_u_s_ajustado'])], color='gray', linestyle='--', label='y=x')
+
+# Etiquetas y título
+plt.xlabel(f"${np.round(a, 3)} \\Pi_1^{{{np.round(b, 2)}}} \\Pi_2^{{{np.round(c, 2)}}} \\Pi_4^{{{np.round(d, 2)}}}$")
+plt.ylabel(r'$U_{sb}/U_s$')
+plt.title(r'SB scaling for u$_{SB}$/u$_s$')
+plt.legend()
+plt.grid(True)
+plt.savefig('/home/poc/Documentos/Projects/SB_SCALING-Netherlands/figs/SB_scaling/scatter_plot.png')
+
+
+# Crear un DataFrame con los datos de temperatura y el índice de tiempo
+df_temp = pd.DataFrame(TA_tower, index=fechas[indices_dia], columns=altura)
+
+# Crear la figura y los ejes para la gráfica
+plt.figure(figsize=(10, 6))
+
+# Graficar la temperatura para cada altura
+for altura in df_temp.columns:
+    plt.plot(df_temp.index, df_temp[altura], label=f'{int(altura)} m')
+
+# Añadir etiquetas y leyenda
+plt.xlabel("Hour UTC")
+plt.ylabel("Air Temperature (TA; K)")
+plt.title("Temperature in Cabauw")
+plt.legend(title="Height (agl)", bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(True)
+
+# Mostrar la gráfica
+plt.tight_layout()
+plt.savefig('/home/poc/Documentos/Projects/SB_SCALING-Netherlands/figs/SB_scaling/TA_Cabauw.png')
+
+
+breakpoint()
