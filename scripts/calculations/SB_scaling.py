@@ -185,7 +185,7 @@ resultados_tiempo = []
 resultados_H = []
 
 # Iterar sobre extensiones de tiempo desde 0 hasta 3 horas (en incrementos de frecuencia de muestreo)
-extensiones = int(3 * 3600 / frecuency_data_seconds)  # Convertir 3 horas en número de pasos
+extensiones = int(4 * 3600 / frecuency_data_seconds)  # Convertir 3 horas en número de pasos
 
 for i in range(0, extensiones + 1):
     # Calcular el índice extendido de t_p
@@ -389,7 +389,7 @@ parameters['theta_grad'] = theta_gradient_all_times
 parameters['u_s'] = (parameters['g'] * parameters['delta_T'])/(parameters['T_0'] * parameters['N'])
 parameters['u_sb'] = df_U_sb.values
 
-SB_scaling_data = parameters[(parameters.index > '2014-07-16 17:00:00') & (parameters.index < '2014-07-16 19:00:00')]
+SB_scaling_data = parameters[(parameters.index > '2014-07-16 16:00:00') & (parameters.index < '2014-07-16 20:00:00')]
 
 SB_scaling_data = SB_scaling_data.copy()
 SB_scaling_data[['g', 'delta_T', 'T_0', 'N', 'H', 'f', 'omega']] = SB_scaling_data[['g', 'delta_T', 'T_0', 'N', 'H', 'f', 'omega']].apply(pd.to_numeric, errors='coerce')
