@@ -85,8 +85,8 @@ variables = ncfile.variables.keys()
 ds = xr.open_mfdataset(dir_wrf_files, concat_dim='Time', combine='nested', parallel=False)
 
 # Coordenadas del punto de interés (latitud y longitud)
-lat_punto = 51.97  # Latitud
-lon_punto = 4.926  # Longitud
+lat_punto = 52.141  # Latitud
+lon_punto = 4.437  # Longitud
 
 # Usamos el primer archivo para obtener los índices más cercanos con wrf-python
 ncfile = Dataset(dir_wrf_files[0])
@@ -96,7 +96,7 @@ punto_mas_cercano = ll_to_xy(ncfile, lat_punto, lon_punto)
 
 # Extraer las alturas (geopotencial) usando wrf-python
 altura = getvar(ncfile, "z")  # La variable "z" representa las alturas en metros
-alturas_Cabauw = altura[:, punto_mas_cercano[1], punto_mas_cercano[0]]
+alturas_loc_superficie = altura[:, punto_mas_cercano[1], punto_mas_cercano[0]]
 # Extraer todas las variables en el punto más cercano para todas las dimensiones de tiempo
 # Usamos 'isel' para seleccionar el punto (punto_mas_cercano) en las dimensiones 'south_north' y 'west_east'
 data_Cabauw_WRF = ds.isel(south_north=punto_mas_cercano[1], south_north_stag=punto_mas_cercano[1], west_east=punto_mas_cercano[0], west_east_stag=punto_mas_cercano[0])
@@ -104,15 +104,15 @@ data_Cabauw_WRF = ds.isel(south_north=punto_mas_cercano[1], south_north_stag=pun
 
 ## LEo las variables en superficie
 data_T_sea, _ = generate_WRF_df_STNvsDATETIME('2', 'PrelimSim_I', '2014-07-16', 'TSK', STN = 320)
-data_T_Cabauw, _ = generate_WRF_df_STNvsDATETIME('2', 'PrelimSim_I', '2014-07-16', 'TSK', STN = 348)
-data_HFX_sea, _ = generate_WRF_df_STNvsDATETIME('2', 'PrelimSim_I', '2014-07-16', 'HFX', STN = 348)
-data_U10_land, _ = generate_WRF_df_STNvsDATETIME('2', 'PrelimSim_I', '2014-07-16', 'U10', STN = 348)
-data_V10_land, _ = generate_WRF_df_STNvsDATETIME('2', 'PrelimSim_I', '2014-07-16', 'V10', STN = 348)
+data_T_Cabauw, _ = generate_WRF_df_STNvsDATETIME('2', 'PrelimSim_I', '2014-07-16', 'TSK', STN = 215)
+data_HFX_sea, _ = generate_WRF_df_STNvsDATETIME('2', 'PrelimSim_I', '2014-07-16', 'HFX', STN = 215)
+data_U10_land, _ = generate_WRF_df_STNvsDATETIME('2', 'PrelimSim_I', '2014-07-16', 'U10', STN = 215)
+data_V10_land, _ = generate_WRF_df_STNvsDATETIME('2', 'PrelimSim_I', '2014-07-16', 'V10', STN = 215)
 
 ### Leo los valores de wdir para todos los tiempos:
 # Lista para almacenar los DataArrays de wdir
 wdir_list = []
-
+wspd_list = []
 # Iterar sobre cada archivo wrfout
 for file in dir_wrf_files:
     # Abrir el archivo wrfout
@@ -120,23 +120,36 @@ for file in dir_wrf_files:
     
     # Extraer la dirección del viento (wdir)
     wdir = getvar(ncfile, "wdir")
-    
+    wspd = getvar(ncfile, "wspd")
+
     # Seleccionar el punto más cercano y agregar a la lista (si punto_mas_cercano es un índice)
     wdir_punto = wdir[:, punto_mas_cercano[1], punto_mas_cercano[0]]
-    
+    wspd_punto = wspd[:, punto_mas_cercano[1], punto_mas_cercano[0]]
+
     # Agregar la variable Time desde el archivo wrfout (por ejemplo, a partir de getvar o directo desde ncfile)
     time = getvar(ncfile, "Times", meta=False)
     
     # Asignar el tiempo como coordenada
     wdir_punto = wdir_punto.expand_dims(Time=[time])  # Añadir Time como nueva dimensión
-    
+    wspd_punto = wspd_punto.expand_dims(Time=[time])  # Añadir Time como nueva dimensión
+
     # Añadir el DataArray a la lista
     wdir_list.append(wdir_punto)
+    wspd_list.append(wspd_punto)
 
 # Concatenar todos los DataArrays en la nueva dimensión de tiempo
 wdir_combined = xr.concat(wdir_list, dim='Time')
-breakpoint()
+wspd_combined = xr.concat(wspd_list, dim='Time')
 
+wdir_combined_df = wdir_combined.to_dataframe().sort_index()
+wdir_combined_df = wdir_combined_df.iloc[:, 1:]
+wdir_combined_df['wspd_wdir'] = pd.to_numeric(wdir_combined_df['wspd_wdir'], errors='coerce')
+
+wspd_combined_df = wspd_combined.to_dataframe().sort_index()
+wspd_combined_df = wspd_combined_df.iloc[:, 1:]
+wspd_combined_df['wspd_wdir'] = pd.to_numeric(wspd_combined_df['wspd_wdir'], errors='coerce')
+wspd_combined_df.columns = ['XLONG', 'XLAT', 'XTIME', 'latlon_coord', 'wspd']
+wspd_combined_df['wdir'] = wdir_combined_df['wspd_wdir']
 
 # Constantes
 g = 9.81 # m/s2
@@ -149,7 +162,11 @@ cp = 1004  # Calor específico del aire seco (J/kg·K)
 
 #########
 #Calculo delta_T entre los valores de superficie y mar:
-delta_T = data_T_Cabauw[348] - data_T_sea[320]
+delta_T = data_T_Cabauw[215] - data_T_sea[320]
+delta_T.columns = ['delta_T']
+delta_T_resampled = delta_T#.resample('10min').ffill()  # Forward-fill to match 10-min intervals
+delta_T_resampled.astype(float)
+delta_T_resampled = delta_T_resampled.to_frame(name='delta_T')
 #########
 
 
@@ -166,21 +183,36 @@ data_Cabauw_WRF['theta'] = temperatura_potencial
 
 
 # Seleccionar los índices de los niveles donde las alturas están por debajo de 200 metros
-idx_bajo_200m =(alturas_Cabauw < 200).values.nonzero()[0]
-variables_bajo_200m = data_Cabauw_WRF.sel(bottom_top=idx_bajo_200m)
+idx_bajo_1200m =(alturas_loc_superficie < 1200).values.nonzero()[0]
+variables_bajo_200m = data_Cabauw_WRF.sel(bottom_top=idx_bajo_1200m)
 
-# Seleccionar los índices de los niveles donde las alturas están por debajo de 200 metros
-# Encontrar los índices más cercanos a 200 m y 2 m
-idx_200m = np.abs(alturas_Cabauw - 200).argmin().item()
-idx_2m = np.abs(alturas_Cabauw - 2).argmin().item()
+# Seleccionar los índices de los niveles donde las alturas están por debajo de 1200 metros
+# Encontrar los índices más cercanos a 1200 m y 500 m
+idx_1200m = np.abs(alturas_loc_superficie - 1200).argmin().item()
+idx_500m = np.abs(alturas_loc_superficie - 500).argmin().item()
 
 #############################
 ##### Calcular el environmental lapse rate (Gamma) y T_0
-Gamma = -(data_Cabauw_WRF['theta'].isel(bottom_top=idx_200m) -
-          data_Cabauw_WRF['theta'].isel(bottom_top=idx_2m)) / \
-        (alturas_Cabauw.isel(bottom_top=idx_200m) - alturas_Cabauw.isel(bottom_top=idx_2m))
+Gamma = -(data_Cabauw_WRF['theta'].isel(bottom_top=idx_1200m) -
+          data_Cabauw_WRF['theta'].isel(bottom_top=idx_500m)) / \
+        (alturas_loc_superficie.isel(bottom_top=idx_1200m) - alturas_loc_superficie.isel(bottom_top=idx_500m))
+Gamma_df = pd.DataFrame(Gamma, index = data_T_sea.index)
+Gamma_df.columns = ['Theta_grad']
+Gamma_df_df_resampled = Gamma_df#.resample('10min').ffill()  # Forward-fill to match 10-min intervals
+Gamma_df_df_resampled.astype(float)
 
-T_0 = variables_bajo_200m['theta'].mean(dim='bottom_top').compute().values
+
+T_0 = data_Cabauw_WRF.isel(bottom_top=range(idx_500m, idx_1200m + 1))['theta'].mean(dim='bottom_top').compute().values
+T_0_df = pd.DataFrame(T_0, index = data_T_sea.index)
+T_0_df.columns = ['T_0']
+T_0_df_resampled = T_0_df#.resample('10min').ffill()  # Forward-fill to match 10-min intervals
+T_0_df_resampled.astype(float)
+
+N_alltimes = np.sqrt(g*abs(Gamma)/T_0)
+N_alltimes_df = pd.DataFrame(N_alltimes, index = data_T_sea.index)
+N_alltimes_df.columns = ['N']
+N_alltimes_df_resampled = N_alltimes_df#.resample('10min').ffill()  # Forward-fill to match 10-min intervals
+N_alltimes_df_resampled.astype(float)
 #############################
 
 ############################# 
@@ -189,38 +221,27 @@ T_0 = variables_bajo_200m['theta'].mean(dim='bottom_top').compute().values
 # Convertir `data_Cabauw_WRF['HFX']` a un DataFrame de pandas para manipulación más sencilla
 df_HFX = data_Cabauw_WRF['HFX'].to_dataframe()
 
-# Calcular la dirección del viento en grados
-# WD = (270 - (np.arctan2(data_Cabauw_WRF['V'], data_Cabauw_WRF['U']) * 180 / np.pi)) % 360
-
-# df_WD = WD.to_dataframe(name='WD').reset_index()
-# df_WD['XTIME'] = pd.to_datetime(df_WD['XTIME'])
-# breakpoint()
-# df_WD.set_index(['XTIME', 'bottom_top'], inplace=True)
-# df_WD = df_WD.sort_index()
-# Definir `t_s` como el índice de tiempo en el cual `HFX` comienza a ser positivo o supera un umbral
-wdir_combined_df = wdir_combined.to_dataframe().sort_index()
-wdir_combined_df = wdir_combined_df.iloc[:, 1:]
-wdir_combined_df['wspd_wdir'] = pd.to_numeric(wdir_combined_df['wspd_wdir'], errors='coerce')
+df_HFX['XTIME'] = pd.to_datetime(df_HFX['XTIME'])
+df_HFX.set_index(['XTIME'], inplace=True)
+df_HFX = df_HFX.sort_index()
 
 
-t_s = (df_HFX['HFX'] > 10).idxmax()  # Cambia 10 si deseas otro umbral
+
+t_s = df_HFX['HFX'][df_HFX['HFX'] > 10].index[0]  # Cambia 10 si deseas otro umbral
 idx_t_s = df_HFX.index.get_loc(t_s)
 
 # Definir `t_p` como el tiempo en el cual la dirección del viento (de otra fuente) está en el rango deseado durante 1h
 # Usar tu función `detectar_racha_direccion_viento`
 t_p = detectar_racha_direccion_viento(wdir_combined_df.xs(0, level='bottom_top'), columna_direccion='wspd_wdir', min_duracion='1h', rango=(210, 300))
 in_range = wdir_combined_df.xs(0, level='bottom_top')[
-    (wdir_combined_df.xs(0, level='bottom_top')['wspd_wdir'] >= 210) &
-    (wdir_combined_df.xs(0, level='bottom_top')['wspd_wdir'] <= 300)
+    (wdir_combined_df.xs(0, level='bottom_top')['wspd_wdir'] >= 240) &
+    (wdir_combined_df.xs(0, level='bottom_top')['wspd_wdir'] <= 350)
 ]
-breakpoint()
-idx_t_p = df_HFX.index.get_loc(t_p)
+
+t_p = df_HFX[df_HFX.index.isin(in_range.index)].index
 
 # Calcular la frecuencia de muestreo en segundos
-frecuency_data_seconds = pd.to_timedelta(df_HFX.index.inferred_freq).total_seconds()
-
-# Calcular H para el intervalo de tiempo desde `t_s` hasta `t_p`
-H = (1 / (t_p - t_s).total_seconds()) * (df_HFX.iloc[idx_t_s:idx_t_p]['HFX'].sum() * frecuency_data_seconds)  # W/m²
+frecuency_data_seconds = (df_HFX.index[1] - df_HFX.index[0]).total_seconds()
 
 # Crear listas para almacenar los tiempos y los valores de H para tiempos extendidos
 resultados_tiempo = []
@@ -229,38 +250,171 @@ resultados_H = []
 # Definir la extensión de tiempo en términos de pasos de frecuencia de muestreo (hasta 3 horas)
 extensiones = int(4 * 3600 / frecuency_data_seconds)  # 3 horas en número de pasos
 
-# Calcular `H` para tiempos extendidos
-for i in range(0, extensiones + 1):
-    # Índice extendido de `t_p`
-    idx_t_p_extendido = idx_t_p + i
-    
-    # Verificar que el índice extendido no exceda el límite del DataFrame
-    if idx_t_p_extendido >= len(df_HFX):
-        break
-    
-    # Calcular el período actual en segundos
-    periodo = (df_HFX.index[idx_t_p_extendido] - df_HFX.index[idx_t_s]).total_seconds()
-    
+
+for t_p_loop in t_p:
+    periodo = (t_p_loop-t_s).total_seconds()
+
     # Calcular `H` en el intervalo extendido
-    H_extendido = (1 / periodo) * (df_HFX.iloc[idx_t_s:idx_t_p_extendido]['HFX'].sum() * frecuency_data_seconds)
-    
+    H_extendido = (1 / periodo) * (df_HFX.loc[t_s:t_p_loop]['HFX'].sum() * frecuency_data_seconds)
     # Guardar el tiempo y el valor de H en las listas
-    resultados_tiempo.append(df_HFX.index[idx_t_p_extendido])
+    resultados_tiempo.append(t_p_loop)
     resultados_H.append(H_extendido)
+
 
 # Crear un DataFrame con los resultados
 H_alltimes = pd.DataFrame({'H': resultados_H}, index=resultados_tiempo)
+H_alltimes_resampled = H_alltimes#.resample('10min').interpolate()
 
 # Crear un rango de tiempo completo de 10 minutos para todo el día
 fecha_inicio = '2014-07-16 00:00:00'
-fecha_fin = '2014-07-16 23:59:59'
-indice_completo = pd.date_range(start=fecha_inicio, end=fecha_fin, freq='10T')
+fecha_fin = '2014-07-16 23:00:00'
+indice_completo = pd.date_range(start=fecha_inicio, end=fecha_fin, freq='1H')#, freq='10min')
 
 # Reindexar el DataFrame de resultados para el índice completo
-H_alltimes = H_alltimes.reindex(indice_completo).tz_localize('UTC')
-H_alltimes.columns = ['H']
+H_alltimes_resampled = H_alltimes_resampled.reindex(indice_completo).tz_localize('UTC')
+H_alltimes_resampled.columns = ['H']
 
-# Imprimir el resultado final de H
-print('############################################')
-print(f'Integrated surface-layer kinematic sensible heat flux is represented by H = {float(H_alltimes.iloc[0])} W/m²')
-print('############################################')
+############################# 
+
+#############################
+### Calculo de U_sb --> Porson et al,. 2007
+wind_for_Usb_comp = wspd_combined_df.loc[t_p,:]
+# Filtrar los datos donde la dirección del viento está fuera del rango (210, 300)
+outside_range = wind_for_Usb_comp[(wind_for_Usb_comp['wdir'] < 210) | (wind_for_Usb_comp['wdir'] > 350)]
+# Reset the index to make 'bottom_top' a regular column
+outside_range_reset = outside_range.reset_index()
+
+# Group by 'Time' and get the first 'bottom_top' value where the wind direction is out of range
+first_outside_height = outside_range_reset.groupby('Time')['bottom_top'].first()
+
+# Alternatively, get all 'bottom_top' levels out of range as a list for each 'Time'
+all_outside_heights = outside_range_reset.groupby('Time')['bottom_top'].apply(list)
+
+# Convertir alturas_loc_superficie en un array de diferencias (delta_Z) entre niveles
+delta_Z = np.insert(np.diff(alturas_loc_superficie), 0, alturas_loc_superficie[0])  # Esto te da los delta_Z para cada nivel
+# Inicializar un diccionario para almacenar los resultados para cada tiempo
+U_sb_results = pd.DataFrame(index=first_outside_height.index, columns=['U_sb'])
+
+# Iterar sobre cada tiempo en first_outside_height
+for time, Z_sb in first_outside_height.items():
+    
+    
+    # Seleccionar valores de wspd hasta max_level para el tiempo específico
+    wspd_values = wind_for_Usb_comp.loc[time].loc[:Z_sb, 'wspd']
+    
+    # Obtener los delta_Z correspondientes hasta max_level
+    delta_Z_values = delta_Z[:(Z_sb+1)]  # Tomamos solo hasta el nivel máximo permitido
+
+    # Calcular el integral como la suma ponderada de wspd por delta_Z
+    integral_U = np.sum(wspd_values.values * delta_Z_values)  # Multiplica y suma para integrar
+
+    # Calcular Z_sb como la suma de delta_Z_values para obtener la altura real
+    Z_sb_real = alturas_loc_superficie[Z_sb]
+
+    # Calcular U_sb usando la fórmula
+    U_sb = integral_U / Z_sb_real
+    
+    # Guardar el resultado
+    U_sb_results.loc[time, 'U_sb'] = float(U_sb)
+
+U_sb_alltimes = U_sb_results.reindex(indice_completo).tz_localize('UTC')
+U_sb_alltimes.columns = ['u_sb']
+U_sb_alltimes = U_sb_alltimes.astype(float)
+U_sb_alltimes = U_sb_alltimes#.resample('10min').interpolate()
+
+### Genero el df con todas las variables necesarias: delta_T, H, N, f, omega, g, T_0:
+parameters = pd.concat([delta_T_resampled, H_alltimes_resampled, N_alltimes_df_resampled], axis=1)
+parameters['f'] = f
+parameters['omega'] = omega
+parameters['g'] = g
+parameters['T_0'] = T_0_df_resampled.mean(axis=1)
+parameters['theta_grad'] = Gamma_df_df_resampled
+
+
+
+
+
+parameters['u_s'] = (parameters['g'] * parameters['delta_T'])/(parameters['T_0'] * parameters['N'])
+parameters['u_sb'] = U_sb_alltimes
+
+SB_scaling_data = parameters[(parameters.index > t_p[0].strftime("%Y-%m-%d %H:%M:%S")) & (parameters.index < t_p[-1].strftime("%Y-%m-%d %H:%M:%S"))]
+
+SB_scaling_data = SB_scaling_data.copy()
+SB_scaling_data[['g', 'delta_T', 'T_0', 'N', 'H', 'f', 'omega']] = SB_scaling_data[['g', 'delta_T', 'T_0', 'N', 'H', 'f', 'omega']].apply(pd.to_numeric, errors='coerce')
+
+# Calcular los términos adimensionales
+SB_scaling_data['Pi_1'] = (SB_scaling_data['g'] * SB_scaling_data['delta_T']**2) / (SB_scaling_data['T_0'] * SB_scaling_data['N'] * SB_scaling_data['H'])
+SB_scaling_data['Pi_2'] = SB_scaling_data['f'] / SB_scaling_data['omega']
+SB_scaling_data['Pi_4'] = SB_scaling_data['N'] / SB_scaling_data['omega']
+
+
+Pi_1 = SB_scaling_data['Pi_1'].values
+Pi_2 = SB_scaling_data['Pi_2'].values
+Pi_4 = SB_scaling_data['Pi_4'].values
+ydata = (SB_scaling_data['u_sb'] / SB_scaling_data['u_s']).values
+
+
+
+
+# Definir la función de ajuste en la forma de la ecuación
+def modelo_u_sb_u_s(Pi_1, Pi_2, Pi_4, a, b, c, d):
+    return a * Pi_1**b * Pi_2**c * Pi_4**d
+
+
+breakpoint()
+# Realizar el ajuste de curva no lineal
+# Inicializamos los valores de [a, b, c, d] en [1, -0.5, -1, 0.5] como ejemplo
+# Usamos lambda para pasar Pi_1, Pi_2, Pi_4 como argumentos individuales
+popt, pcov = curve_fit(lambda P, a, b, c, d: modelo_u_sb_u_s(Pi_1, Pi_2, Pi_4, a, b, c, d), 
+                       xdata=np.zeros_like(Pi_1),  # xdata es solo un marcador, no se usa realmente
+                       ydata=ydata, 
+                       p0=[0.85, -0.5, -9/4, 0.5],
+                       bounds = ([0,-4,-4,-4], [10,4,4,4]), maxfev=10000, ftol=1e-2, xtol=1e-2, gtol=1e-2)
+# Extraer los coeficientes ajustados
+a, b, c, d = popt
+
+
+
+
+
+# Calcular los valores ajustados de u_sb/u_s usando los coeficientes ajustados
+u_sb_u_s_ajustado = a * SB_scaling_data['Pi_1']**b * SB_scaling_data['Pi_2']**c * SB_scaling_data['Pi_4']**d
+
+# Crear el gráfico de dispersión
+plt.figure(figsize=(8, 6))
+plt.scatter(u_sb_u_s_ajustado, (SB_scaling_data['u_sb'] / SB_scaling_data['u_s']), color='black')
+# plt.plot([0, max(parameters['u_sb_u_s_ajustado'])], [0, max(parameters['u_sb_u_s_ajustado'])], color='gray', linestyle='--', label='y=x')
+
+# Etiquetas y título
+plt.xlabel(f"${np.round(a, 3)} \\Pi_1^{{{np.round(b, 2)}}} \\Pi_2^{{{np.round(c, 2)}}} \\Pi_4^{{{np.round(d, 2)}}}$")
+plt.ylabel(r'$U_{sb}/U_s$')
+plt.title(r'SB scaling for u$_{SB}$/u$_s$')
+plt.legend()
+plt.grid(True)
+plt.savefig('/home/poc/Documentos/Projects/SB_SCALING-Netherlands/figs/SB_scaling/U_SB_SCALING_WRF_plot.png')
+
+breakpoint()
+# Crear un DataFrame con los datos de temperatura y el índice de tiempo
+df_temp = pd.DataFrame(TA_tower, index=fechas[indices_dia], columns=altura)
+
+# Crear la figura y los ejes para la gráfica
+plt.figure(figsize=(10, 6))
+
+# Graficar la temperatura para cada altura
+for altura in df_temp.columns:
+    plt.plot(df_temp.index, df_temp[altura], label=f'{int(altura)} m')
+
+# Añadir etiquetas y leyenda
+plt.xlabel("Hour UTC")
+plt.ylabel("Air Temperature (TA; K)")
+plt.title("Temperature in Cabauw")
+plt.legend(title="Height (agl)", bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(True)
+
+# Mostrar la gráfica
+plt.tight_layout()
+plt.savefig('/home/poc/Documentos/Projects/SB_SCALING-Netherlands/figs/SB_scaling/TA_Cabauw.png')
+
+
+breakpoint()
+breakpoint()
