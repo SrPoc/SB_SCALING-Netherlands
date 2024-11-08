@@ -25,12 +25,12 @@ from plot_wrfout_data import plot_wrf_variable
 # PARAMETERS KNMI
 var_name = 'Q'
 var_units = 'g/m3'
-date_of_interest = '2014-07-16'
+date_of_interest = '2014-07-15'
 
 # PARAMETERS WRF
 var_name_WRF = 'Q'
 var_units = 'g/m3'
-sim_name = 'PrelimSim_I'
+sim_name = 'Sim_1'
 domain_number = '2'
 
 cbar_lims_both=(8, 12) #serán iguales para los dos, KNMI y WRF
@@ -67,18 +67,20 @@ for str_time, wind_direction_hour in df_resultado_KNMI.iterrows():
     str_time = str_time.strftime('%Y-%m-%d %H:%M:%S %Z')
     if var_name == 'Q':
         
-        variable_T2, lats, lons, times = process_wrf_file(f'{path_wrf_files}/wrfout_d0{domain_number}_{str_time.split()[0]}_{str_time.split()[1].split(":")[0]}.nc', 'T2', time_idx=None)
-        variable_PSFC, _, _, _ = process_wrf_file(f'{path_wrf_files}/wrfout_d0{domain_number}_{str_time.split()[0]}_{str_time.split()[1].split(":")[0]}.nc', 'PSFC', time_idx=None)
-        variable_td2, _, _, _ = process_wrf_file(f'{path_wrf_files}/wrfout_d0{domain_number}_{str_time.split()[0]}_{str_time.split()[1].split(":")[0]}.nc', 'td2', time_idx=None)
-
+        variable_T2, lats, lons, times = process_wrf_file(f'{path_wrf_files}/wrfout_{sim_name}_d0{domain_number}_{str_time.split()[0]}_{str_time.split()[1].split(":")[0]}.nc', 'T2', time_idx=None)
+        variable_PSFC, _, _, _ = process_wrf_file(f'{path_wrf_files}/wrfout_{sim_name}_d0{domain_number}_{str_time.split()[0]}_{str_time.split()[1].split(":")[0]}.nc', 'PSFC', time_idx=None)
+        variable_td2, _, _, _ = process_wrf_file(f'{path_wrf_files}/wrfout_{sim_name}_d0{domain_number}_{str_time.split()[0]}_{str_time.split()[1].split(":")[0]}.nc', 'td2', time_idx=None)
+        
         e_vapor = 6.112* np.exp(17.67*(variable_td2)/((variable_td2)+243.5))
 
         variable = 0.622*(e_vapor)/((variable_PSFC/100)-(0.378*e_vapor))*1000
     else:
         
-        variable, lats, lons, times = process_wrf_file(f'{path_wrf_files}/wrfout_d0{domain_number}_{str_time.split()[0]}_{str_time.split()[1].split(":")[0]}.nc', var_name_WRF, time_idx=None)
+        variable, lats, lons, times = process_wrf_file(f'{path_wrf_files}/wrfout_{sim_name}_d0{domain_number}_{str_time.split()[0]}_{str_time.split()[1].split(":")[0]}.nc', var_name_WRF, time_idx=None)
         if var_name_WRF == 'T2':
             variable = variable -273
+    print('Esto hay que arreglarlo, ya que antes cada archivo era un unico paso temporal y ahora cada fichero nc contiene 60 pasos temporales (datos 10minutales)...')
+    breakpoint()
     plot_wrf_variable(variable, lats, lons, fig, subplot_idx=111, cbar_lims=cbar_lims_both)
 
     ax = fig.axes[0]
@@ -129,14 +131,14 @@ for str_time, wind_direction_hour in df_resultado_KNMI.iterrows():
     plt.title(f'{var_name_WRF} (WRF; contours) and {var_name} (KNMI stations; dots) {str_time.split()[0]} {str_time.split()[1].split(":")[0]} UTC', fontsize=18)
         # Asegúrate de que el directorio exista
     os.makedirs(f'{ruta_actual}/figs/maps/{str_time.split()[0]}/KNMIvsWRF/{var_name}', exist_ok=True)
-    plt.savefig(f'{ruta_actual}/figs/maps/{str_time.split()[0]}/KNMIvsWRF/{var_name}/{var_name}_{str_time.split()[0]}_{str_time.split()[1].split(":")[0]}.png')
+    plt.savefig(f'{ruta_actual}/figs/maps/{str_time.split()[0]}/KNMIvsWRF/{var_name}/{var_name}_{sim_name}_{str_time.split()[0]}_{str_time.split()[1].split(":")[0]}.png')
 
 path_to_figs = Path.cwd().joinpath(f'{ruta_actual}/figs/maps/{str_time.split()[0]}/KNMIvsWRF/{var_name}/')
 
-images = [Image.open(png) for png in sorted(list(path_to_figs.glob(f'{var_name}_{str_time.split()[0]}*.png')))]
+images = [Image.open(png) for png in sorted(list(path_to_figs.glob(f'{var_name}_{sim_name}_{str_time.split()[0]}*.png')))]
 
 # Guardamos las imágenes en formato GIF
-images[0].save(f'{path_to_figs}/{var_name}_{str_time.split()[0]}.gif', save_all=True, append_images=images[1:], optimize=False, duration=600, loop=0)
+images[0].save(f'{path_to_figs}/{var_name}_{sim_name}_{str_time.split()[0]}.gif', save_all=True, append_images=images[1:], optimize=False, duration=600, loop=0)
 
 breakpoint()
 
