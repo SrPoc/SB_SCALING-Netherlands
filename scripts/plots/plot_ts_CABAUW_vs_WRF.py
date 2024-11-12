@@ -29,7 +29,7 @@ import plot_functions
 var_name = 'Q'
 
 # PARAMETERS Cabauw data
-var_name_CABAUW = 'TH03'
+var_name_CABAUW = 'TH08'
 var_units = r'm^3/m^3'
 loc_data = 'data/Obs/Cabauw/cesar_soil_water_lb1_t10_v1.1_201407.nc'
 
@@ -46,7 +46,8 @@ path_wrf_files = Path.cwd().joinpath(f'data/Models/WRF/{sim_name}')
 
 ################################################
 ###### COMPRUEBO EL LU_INDEX DEL PUNTO DE MALLA MAS CERCANO A CABAUW
-ds = nc.Dataset(F'/home/poc/Documentos/Projects/SB_SCALING-Netherlands/data/Models/WRF/{sim_name}/wrfout_d0{domain_number}_{day_of_interest}.nc')
+ds = nc.Dataset(F'/home/poc/Documentos/Projects/SB_SCALING-Netherlands/data/Models/WRF/{sim_name}/wrfout_{sim_name}_d0{domain_number}_{day_of_interest}.nc')
+breakpoint()
 lu_index = getvar(ds, "LU_INDEX")
 # Convertir las coordenadas geográficas al índice de la malla
 x_y = ll_to_xy(ds, 51.971, 4.926)

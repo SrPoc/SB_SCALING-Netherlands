@@ -6,7 +6,9 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-
+import matplotlib.colors as mcolors
+from matplotlib.colors import LinearSegmentedColormap
+from datetime import datetime
 '''
 Script para generar un fichero txt con los datos de todas las estaciones del KNMI juntos
 indexados por STN, datetime
@@ -28,12 +30,13 @@ ruta_datos_KNMI_NorthSea = ruta_actual / 'data' / 'Obs' / 'KNMI_NorthSea'
 
 ruta_coords_KNMI_land = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_land.csv'
 ruta_coords_KNMI_NorthSea = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_NorthSea.csv'
-###
+
+compute_data = False # si compute_data == True calcula los datos, si no, los importa
 
 ### PARÁMETROS:
-sim_name = 'Sim_2'
+sim_name = 'PrelimSim_I'
 domain_number = '2'
-date_of_interest = '2014-07-15'
+date_of_interest = '2014-07-16'
 
 # Variable de KNMI y de WRF que se quiere procesar
 var_name = input("Elige la variable que quieres calcular (T, WS, WD, q): ").strip().upper()
@@ -42,208 +45,344 @@ var_name_WRF = var_name
 if var_name == 'T':
     var_name_KNMI = 'T'  # Temperatura en 0.1 ºC
     var_units = 'ºC'
+    figsizee=(12, 12)
 elif var_name == 'WS':
     var_name_KNMI = 'FF'  # Velocidad del viento
     var_units = 'm/s'
+    figsizee=(12, 16)
 elif var_name == 'Q':  # Humedad específica
     var_name_KNMI = 'U'  # Se utilizará para calcular la humedad específica
     var_units = 'g/kg'
+    figsizee=(12, 12)
 elif var_name == 'WD':
     var_name_KNMI = 'DD'  # Se utilizará para calcular la humedad específica
     var_units = 'Where the wind comes from'
+    figsizee=(12, 12)
 else:
     raise ValueError("La variable elegida no es válida. Elige entre 'T', 'WS', 'WD', o 'q'.")
 
-####### INICIO OBTENCION DATOS OBSERVACIONALES
-### LEO LOS DATOS DE KNMI Y LOS GUARDO EN LA VARIABLE data_KNMI
-data_KNMI = []
-file_paths = [filename for filename in sorted(os.listdir(ruta_datos_KNMI_land)) if filename.startswith("uurgeg_")]
 
-for file_path in file_paths:
-    print(f'Reading {file_path} ..')
-    df = cargar_datos(f'{ruta_datos_KNMI_land}/{file_path}')
-    if file_path == file_paths[0]:
-        df_full = df.loc[(slice(None), date_of_interest), :]
-    else:
-        df_full = pd.concat([df_full, df.loc[(slice(None), date_of_interest), :]])
-
-data_KNMI.append(df_full)
-
-# data_KNMI es una lista que contiene en el primer hueco los datos de superficie y en el segundo los del North Sea
 ###
+periods_computation = ['day', 'breeze', 'pre-breeze', 'all']
+if compute_data == True:
+
+    ####### INICIO OBTENCION DATOS OBSERVACIONALES
+    ### LEO LOS DATOS DE KNMI Y LOS GUARDO EN LA VARIABLE data_KNMI
+    data_KNMI = []
+    file_paths = [filename for filename in sorted(os.listdir(ruta_datos_KNMI_land)) if filename.startswith("uurgeg_")]
+
+    for file_path in file_paths:
+        print(f'Reading {file_path} ..')
+        df = cargar_datos(f'{ruta_datos_KNMI_land}/{file_path}')
+        if file_path == file_paths[0]:
+            df_full = df.loc[(slice(None), date_of_interest), :]
+        else:
+            df_full = pd.concat([df_full, df.loc[(slice(None), date_of_interest), :]])
+
+    data_KNMI.append(df_full)
+
+    # data_KNMI es una lista que contiene en el primer hueco los datos de superficie y en el segundo los del North Sea
+    ###
+
+    coords_KNMI_land = pd.read_csv(ruta_coords_KNMI_land, sep=',', header=0, usecols=['STN', 'LON(east)', 'LAT(north)', 'ALT(m)', 'LOC'])
+    coords_KNMI_land.set_index('STN', inplace=True)
+    coords_KNMI_NorthSea = pd.read_csv(ruta_coords_KNMI_NorthSea, sep=',', header=0, usecols=['STN', 'LON(east)', 'LAT(north)', 'ALT(m)', 'LOC'])
+    coords_KNMI_NorthSea.set_index('STN', inplace=True)
+
+    coords_KNMI_land_and_sea = pd.concat([coords_KNMI_land, coords_KNMI_NorthSea])
+
+    ###
+
+    ### EXTRAIGO LOS CODIGOS DE LAS ESTACIONES DE LAND Y NORTHSEA:
+    STN_values_land = sorted(data_KNMI[0].index.get_level_values(0).unique())
+    # STN_values_NorthSea = data_KNMI[1].index.get_level_values(0).unique()
+
+    str_times_land = data_KNMI[0].index.get_level_values(1).unique().strftime('%Y-%m-%d %H:%M:%S').tolist()
+    # str_times_NorthSea = data_KNMI[1].index.get_level_values(1).unique().strftime('%Y-%m-%d %H:%M:%S').tolist()
+    ###
+
+    # Crear un DataFrame vacío con los tiempos como índice y STN como columnas
+    df_resultado_land = pd.DataFrame(index=str_times_land, columns=STN_values_land)  # Contendrá el valor de la variable correspondiente a la estación STN (columna) y datetime (fila)
+    # df_resultado_NorthSea = pd.DataFrame(index=str_times_NorthSea, columns=STN_values_NorthSea)
+
+    # Iterar sobre cada código de STN y cada tiempo
+    for cod_STN in STN_values_land:
+        for time in str_times_land:
+            try:
+                if var_name == 'Q':  # Humedad específica
+                    TD = data_KNMI[0].loc[(cod_STN, time), 'TD'] / 10  # Temperatura del punto de rocío (convertida a grados Celsius)
+                    P = data_KNMI[0].loc[(cod_STN, time), 'P'] / 10  # Presión en hPa
+
+                    e = 6.112 * np.exp((17.67 * TD) / (TD + 243.5))  # presión de vapor
+                    valor = 0.622 * e / (P - 0.378 * e) *1000  # humedad específica
+                elif var_name == 'T':  # Temperatura
+                    valor = data_KNMI[0].loc[(cod_STN, time), 'T'] / 10  # Convertir a grados Celsius
+                elif var_name == 'WS':  # Velocidad del viento
+                    valor = data_KNMI[0].loc[(cod_STN, time), 'FF'] / 10  # Velocidad del viento en m/s
+                elif var_name == 'WD':  # Velocidad del viento
+                    valor = data_KNMI[0].loc[(cod_STN, time), 'DD'] if data_KNMI[0].loc[(cod_STN, time), 'DD'] not in [0, 990] else np.nan  ## Excluyo el valor si es 0 o 990          
+                # Asignar el valor en el DataFrame
+                df_resultado_land.loc[time, cod_STN] = valor
+            except KeyError:
+                # Si no hay datos para la combinación de STN y time, dejar NaN
+                df_resultado_land.loc[time, cod_STN] = None
+
+    print(df_resultado_land)
+    ####### FIN OBTENCION DATOS OBSERVACIONALES
+
+    ### LEO LOS VALORES DE LOS WRFOUT (SIMULACIONES)
+    ruta = ruta_actual / 'data' / 'Models' / 'WRF' / sim_name 
+    file_names_WRF = sorted(filename for filename in os.listdir(ruta) if filename.startswith(f"wrfout_{sim_name}_d0{domain_number}_{date_of_interest}_"))
+
+    df_resultado_WRF_land = df_resultado_land.copy()
+    # Reemplazar todos los valores por NaN para rellenarlos en el bucle
+    df_resultado_WRF_land[:] = np.nan
+
+    # Iterar sobre cada archivo en file_names_WRF
+    for file_name_WRF in file_names_WRF:
+
+        date_part = file_name_WRF.split('_')[4]  # "2014-07-15"
+        hour_part = file_name_WRF.split('_')[5].split('.')[0]  # "13"
+        
+        # Convertir a yyyymmddHH
+        yyyymmddHH = date_part.replace('-', '') + hour_part
+        
+        # Convertir yyyymmddHH a un formato de datetime compatible con el índice del DataFrame
+        time_str = pd.to_datetime(yyyymmddHH, format='%Y%m%d%H')
+
+        # Buscar la fila correspondiente en df_resultado_land
+        if time_str in pd.to_datetime(df_resultado_land.index):
+            print('#####################################################')
+            print(f'#####{time_str} ...')
+            # SI LA VARIABLE ES WD, GENERO DOS DF DE DATOS PARA U Y V PARA HACER PLOTS 
+            if (var_name_WRF == 'WD') and (time_str == pd.to_datetime(df_resultado_land.index)[0]):
+                data_WRF_U = df_resultado_WRF_land.copy()
+                data_WRF_V = df_resultado_WRF_land.copy()
+            for STN_value_land in STN_values_land:
+                # Obtener los valores según la variable elegida
+                # Coordenadas de la estación KNMI
+
+                stn_lat = coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)']
+                stn_lon = coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)']
+
+                # Obtener las coordenadas de latitud y longitud del archivo WRF
+                variable, lats, lons, times = process_wrf_file(f'{ruta}/wrfout_{sim_name}_d0{domain_number}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', time_idx=0)
+                lat_min, lat_max = float(lats.min()), float(lats.max())  # XLAT contiene las latitudes del WRF
+                lon_min, lon_max = float(lons.min()), float(lons.max())
+
+                # Comprobar si la estación está dentro del rango del dominio de WRF
+                if (lat_min <= stn_lat <= lat_max) and (lon_min <= stn_lon <= lon_max):
+                    
+                    print(f'--Searching for nearest WRF grid point to station {STN_value_land}...')
+                    if (var_name_WRF == 'WS') or (var_name_WRF == 'WD'):  # Velocidad del viento
+                        u_value_WRF = float(extract_point_data(f'{ruta}/wrfout_{sim_name}_d0{domain_number}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'U10', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=0))
+                        v_value_WRF = float(extract_point_data(f'{ruta}/wrfout_{sim_name}_d0{domain_number}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'V10', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=0))
+                        if (var_name_WRF == 'WS'):
+                            valor_extraido = np.sqrt(u_value_WRF**2 + v_value_WRF**2)
+                        elif (var_name_WRF == 'WD'):
+                            data_WRF_U.loc[time_str.strftime('%Y-%m-%d %H:%M:%S'), STN_value_land] = u_value_WRF
+                            data_WRF_V.loc[time_str.strftime('%Y-%m-%d %H:%M:%S'), STN_value_land] = v_value_WRF
+                    elif var_name_WRF == 'T':  # Temperatura
+                        valor_extraido = (float(extract_point_data(f'{ruta}/wrfout_{sim_name}_d0{domain_number}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=0))-273)
+                    elif var_name_WRF == 'Q':  # Humedad específica
+                        # Obtener temperatura, punto de rocío y presión para calcular humedad específica
+                        t_value_WRF = (float(extract_point_data(f'{ruta}/wrfout_{sim_name}_d0{domain_number}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=0))-273)
+                        p_value_WRF = float(extract_point_data(f'{ruta}/wrfout_{sim_name}_d0{domain_number}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'PSFC', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=0))/100
+                        td_value_WRF = float(extract_point_data(f'{ruta}/wrfout_{sim_name}_d0{domain_number}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'td2', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=0))
+
+                        e_vapor = 6.112* math.exp(17.67*td_value_WRF/(td_value_WRF+243.5))
+
+                        valor_extraido = 0.622*(e_vapor)/(p_value_WRF-(0.378*e_vapor)) *1000
+                    else:
+                        raise ValueError("Variable no válida para WRF.")
+                    # breakpoint()
+                    if var_name_WRF != 'WD':
+                        df_resultado_WRF_land.loc[time_str.strftime('%Y-%m-%d %H:%M:%S'), STN_value_land] = valor_extraido
+                else:
+                    if (time_str == pd.to_datetime(df_resultado_land.index)[0]):
+                        print(f"La estación {STN_value_land} con latitud {stn_lat} y longitud {stn_lon} está fuera del dominio WRF.")
+            print('#####################################################')
+                
+
+    def calcular_estadisticos(df_modelo, df_obs):
+        """
+        Calcula varios estadísticos entre el modelo y las observaciones en DataFrames bidimensionales.
+        
+        Parámetros:
+        - df_modelo: DataFrame con los datos del modelo (2D: estaciones/tiempo y variables)
+        - df_obs: DataFrame con los datos observados (2D: estaciones/tiempo y variables)
+        
+        Retorno:
+        - DataFrame con los estadísticos calculados para cada variable (o estación y tiempo, dependiendo de la estructura).
+        """
+
+        # Asegúrate de alinear bien los datos (por si tienen índices diferentes)
+        # Convertir todos los valores a numéricos, reemplazando lo que no se puede convertir por NaN
+        df_modelo = df_modelo.apply(pd.to_numeric, errors='coerce')
+        df_obs = df_obs.apply(pd.to_numeric, errors='coerce')
+        # Calcular el RMSE para cada punto en la matriz 2D
+        rmse_abs = np.sqrt(((((df_modelo - df_obs) ** 2)).sum().dropna()) / df_modelo.shape[0])
+
+        # Calcular el MAE para cada punto en la matriz 2D
+        mae_abs = ((df_modelo - df_obs).abs().sum())/df_modelo.shape[0]
+
+        # Calcular el bias para cada punto en la matriz 2D
+        biass = (((df_modelo - df_obs)).mean())/df_modelo.shape[0]
+
+        # Calcular la correlación de Pearson por columna
+        correlacion = df_modelo.corrwith(df_obs, axis=0)
+
+        # breakpoint()
+        # Combinar los estadísticos en un DataFrame
+        estadisticos = pd.DataFrame({
+            'RMSE': rmse_abs,
+            'MAE': mae_abs,
+            'Bias': biass,
+            'Pearson_r': correlacion,
+        })
+
+        return estadisticos
+
+
+    # Supongamos que ya tienes los DataFrames del modelo y de las observaciones
+    # df_resultado_WRF_land es el DataFrame del modelo
+    # df_resultado_land es el DataFrame de las observaciones
+
+    for period_computation in periods_computation:
+        if period_computation == 'night':
+            timestamps_init_fin = (f'{date_of_interest} 20:55:00', f'{date_of_interest} 03:55:00')
+        elif period_computation == 'day':
+            timestamps_init_fin = (f'{date_of_interest} 03:55:00', f'{date_of_interest} 20:55:00')
+        elif period_computation == 'breeze':
+            timestamps_init_fin = (f'{date_of_interest} 11:00:00', f'{date_of_interest} 19:00:00')
+        elif period_computation == 'pre-breeze':
+            timestamps_init_fin = (f'{date_of_interest} 08:00:00', f'{date_of_interest} 11:00:00')
+        elif period_computation == 'all':
+            timestamps_init_fin = (f'{date_of_interest} 00:00:00', f'{date_of_interest} 23:00:00')
+        estadisticos = calcular_estadisticos(df_resultado_WRF_land.loc[timestamps_init_fin[0]:timestamps_init_fin[1],:], df_resultado_land.loc[timestamps_init_fin[0]:timestamps_init_fin[1],:])
+
+        # Mostrar los resultados de los estadísticos
+        print("Estadísticos calculados:")
+        print(estadisticos)
+        # pd.DataFrame([estadisticos.mean()]).round(2).to_csv(f'{ruta_actual}/misc/WRF_validation/Estadisticos_{var_name}_WRF_{sim_name}_vs_KNMIObs.csv', index = False)
+        
+        estadisticos.to_csv(f'{ruta_actual}/misc/WRF_validation/scores_{var_name}_{sim_name}_{date_of_interest}_{period_computation}.csv')
+        estadisticos = estadisticos[(estadisticos[['RMSE', 'MAE', 'Bias', 'Pearson_r']] != 0).all(axis=1)]
+        estadisticos = estadisticos.round(2)
 
 ### LEO LOS FICHEROS DE LAS COORDENADAS DE LAS ESTACIONES
-coords_KNMI_land = pd.read_csv(ruta_coords_KNMI_land, sep=';', header=0, usecols=[0, 1, 2, 4])
+coords_KNMI_land = pd.read_csv(ruta_coords_KNMI_land, sep=',', header=0, usecols=['STN', 'NAME',  'LON(east)', 'LAT(north)', 'ALT(m)', 'LOC'])
 coords_KNMI_land.set_index('STN', inplace=True)
-coords_KNMI_NorthSea = pd.read_csv(ruta_coords_KNMI_NorthSea, sep=';', header=0)
+coords_KNMI_NorthSea = pd.read_csv(ruta_coords_KNMI_NorthSea, sep=',', header=0, usecols=['STN', 'NAME', 'LON(east)', 'LAT(north)', 'ALT(m)', 'LOC'])
 coords_KNMI_NorthSea.set_index('STN', inplace=True)
 
 coords_KNMI_land_and_sea = pd.concat([coords_KNMI_land, coords_KNMI_NorthSea])
 
-###
+def apply_colored_styles(df):
+    # Normalizar cada columna de métricas y aplicar color
+    fig, ax = plt.subplots(figsize=figsizee)  # Ajusta el tamaño según sea necesario
+    # Añadir el título a la tabla
 
-### EXTRAIGO LOS CODIGOS DE LAS ESTACIONES DE LAND Y NORTHSEA:
-STN_values_land = sorted(data_KNMI[0].index.get_level_values(0).unique())
-# STN_values_NorthSea = data_KNMI[1].index.get_level_values(0).unique()
+    plt.title(f"{var_name} scores for {datetime.strptime(timestamps_init_fin[0], '%Y-%m-%d %H:%M:%S').strftime('%d%b %H:%M').lower()} - {datetime.strptime(timestamps_init_fin[1], '%Y-%m-%d %H:%M:%S').strftime('%d%b %H:%M').lower()}", fontsize=16, fontweight="bold", pad=20)  # Título en negrita y con espacio
+    # Ocultar los ejes
+    ax.axis('off')
 
-str_times_land = data_KNMI[0].index.get_level_values(1).unique().strftime('%Y-%m-%d %H:%M:%S').tolist()
-# str_times_NorthSea = data_KNMI[1].index.get_level_values(1).unique().strftime('%Y-%m-%d %H:%M:%S').tolist()
-###
+    # Aplicar colores de gradiente en cada métrica
+    norm_rmse = plt.Normalize(0, df['RMSE'].max())
 
-# Crear un DataFrame vacío con los tiempos como índice y STN como columnas
-df_resultado_land = pd.DataFrame(index=str_times_land, columns=STN_values_land)  # Contendrá el valor de la variable correspondiente a la estación STN (columna) y datetime (fila)
-# df_resultado_NorthSea = pd.DataFrame(index=str_times_NorthSea, columns=STN_values_NorthSea)
+    # Usar TwoSlopeNorm para centrar el color verde en 0 en la columna Bias, pero con el mismo rango de Bias
+    max_bias = max(abs(df['Bias'].min()), abs(df['Bias'].max()))
+    norm_bias = mcolors.TwoSlopeNorm(vmin=-max_bias, vcenter=0, vmax=max_bias)
 
-# Iterar sobre cada código de STN y cada tiempo
-for cod_STN in STN_values_land:
-    for time in str_times_land:
-        try:
-            if var_name == 'Q':  # Humedad específica
-                TD = data_KNMI[0].loc[(cod_STN, time), 'TD'] / 10  # Temperatura del punto de rocío (convertida a grados Celsius)
-                P = data_KNMI[0].loc[(cod_STN, time), 'P'] / 10  # Presión en hPa
+    norm_mae = plt.Normalize(df['MAE'].min(), df['MAE'].max())
+    norm_r = plt.Normalize(-1, 1)
 
-                e = 6.112 * np.exp((17.67 * TD) / (TD + 243.5))  # presión de vapor
-                valor = 0.622 * e / (P - 0.378 * e) *1000  # humedad específica
-            elif var_name == 'T':  # Temperatura
-                valor = data_KNMI[0].loc[(cod_STN, time), 'T'] / 10  # Convertir a grados Celsius
-            elif var_name == 'WS':  # Velocidad del viento
-                valor = data_KNMI[0].loc[(cod_STN, time), 'FF'] / 10  # Velocidad del viento en m/s
-            elif var_name == 'WD':  # Velocidad del viento
-                valor = data_KNMI[0].loc[(cod_STN, time), 'DD'] if data_KNMI[0].loc[(cod_STN, time), 'DD'] not in [0, 990] else np.nan  ## Excluyo el valor si es 0 o 990          
-            # Asignar el valor en el DataFrame
-            df_resultado_land.loc[time, cod_STN] = valor
-        except KeyError:
-            # Si no hay datos para la combinación de STN y time, dejar NaN
-            df_resultado_land.loc[time, cod_STN] = None
+    # Crear la tabla en matplotlib
+    table = ax.table(cellText=df.values, colLabels=df.columns, cellLoc='center', loc='center')
 
-print(df_resultado_land)
-####### FIN OBTENCION DATOS OBSERVACIONALES
+    # Aplicar el estilo al encabezado (nombres de las columnas en negrita y tamaño más grande)
+    for (i, key) in enumerate(df.columns):
+        cell = table[0, i]
+        cell.set_text_props(fontweight="bold", fontsize=12)  # Negrita y tamaño de fuente mayor
 
-### LEO LOS VALORES DE LOS WRFOUT (SIMULACIONES)
-ruta = ruta_actual / 'data' / 'Models' / 'WRF' / sim_name / 'hourly_files'
-file_names_WRF = sorted(filename for filename in os.listdir(ruta) if filename.startswith(f"wrfout_{sim_name}_d0{domain_number}_{date_of_interest}_"))
+    # Colorear las celdas de RMSE, Bias, MAE
+    for i in range(len(df)):
+        # Color para RMSE
+        color_rmse = plt.cm.RdYlGn(1 - norm_rmse(df['RMSE'].iloc[i]))  # Rojo a Verde
+        table[i+1, 2].set_facecolor(color_rmse)
 
-df_resultado_WRF_land = df_resultado_land.copy()
-# Reemplazar todos los valores por NaN para rellenarlos en el bucle
-df_resultado_WRF_land[:] = np.nan
+        # Color para Bias (usando RdYlGn y centrado en 0 con el mismo tono de verde y rojo que MAE)
+        color_bias = cmap_custom(norm_bias(df['Bias'].iloc[i]))
+        table[i+1, 4].set_facecolor(color_bias)
 
-# Iterar sobre cada archivo en file_names_WRF
-for file_name_WRF in file_names_WRF:
+        # Color para MAE
+        color_mae = plt.cm.RdYlGn(1 - norm_mae(df['MAE'].iloc[i]))  # Rojo a Verde
+        table[i+1, 3].set_facecolor(color_mae)
 
-    date_part = file_name_WRF.split('_')[4]  # "2014-07-15"
-    hour_part = file_name_WRF.split('_')[5].split('.')[0]  # "13"
+        # Color para pearson_r
+        color_r = plt.cm.RdYlGn(norm_r(df['Pearson_r'].iloc[i]))
+        table[i+1, 5].set_facecolor(color_r)
+
+    # Ajustar el diseño
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1.2, 1.2)  # Escalar para un tamaño adecuado
+
+    # Guardar la tabla como imagen PNG
+    plt.savefig(f"{ruta_actual}/misc/scores_{var_name}_{sim_name}_{date_of_interest}_{period_computation}_allstat_colors.png", dpi=300, bbox_inches="tight")
+    plt.show()
+
+for period_computation in periods_computation:
+    if period_computation == 'night':
+        timestamps_init_fin = (f'{date_of_interest} 20:55:00', f'{date_of_interest} 03:55:00')
+    elif period_computation == 'day':
+        timestamps_init_fin = (f'{date_of_interest} 03:55:00', f'{date_of_interest} 20:55:00')
+    elif period_computation == 'breeze':
+        timestamps_init_fin = (f'{date_of_interest} 11:00:00', f'{date_of_interest} 19:00:00')
+    elif period_computation == 'pre-breeze':
+        timestamps_init_fin = (f'{date_of_interest} 08:00:00', f'{date_of_interest} 11:00:00')
+    elif period_computation == 'all':
+        timestamps_init_fin = (f'{date_of_interest} 00:00:00', f'{date_of_interest} 23:00:00')
     
-    # Convertir a yyyymmddHH
-    yyyymmddHH = date_part.replace('-', '') + hour_part
+
+    estadisticos = pd.read_csv(f'{ruta_actual}/misc/WRF_validation/scores_{var_name}_{sim_name}_{date_of_interest}_{period_computation}.csv', index_col = 0)
+    # Filtrar las filas que tienen un valor 0 en cualquier columna de métricas
     
-    # Convertir yyyymmddHH a un formato de datetime compatible con el índice del DataFrame
-    time_str = pd.to_datetime(yyyymmddHH, format='%Y%m%d%H')
-
-    # Buscar la fila correspondiente en df_resultado_land
-    if time_str in pd.to_datetime(df_resultado_land.index):
-        print('#####################################################')
-        print(f'#####{time_str} ...')
-        # SI LA VARIABLE ES WD, GENERO DOS DF DE DATOS PARA U Y V PARA HACER PLOTS 
-        if (var_name_WRF == 'WD') and (time_str == pd.to_datetime(df_resultado_land.index)[0]):
-            data_WRF_U = df_resultado_WRF_land.copy()
-            data_WRF_V = df_resultado_WRF_land.copy()
-        for STN_value_land in STN_values_land:
-            # Obtener los valores según la variable elegida
-            # Coordenadas de la estación KNMI
-
-            stn_lat = coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)']
-            stn_lon = coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)']
-
-            # Obtener las coordenadas de latitud y longitud del archivo WRF
-            variable, lats, lons, times = process_wrf_file(f'{ruta}/wrfout_{sim_name}_d0{domain_number}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', time_idx=0)
-            lat_min, lat_max = float(lats.min()), float(lats.max())  # XLAT contiene las latitudes del WRF
-            lon_min, lon_max = float(lons.min()), float(lons.max())
-
-            # Comprobar si la estación está dentro del rango del dominio de WRF
-            if (lat_min <= stn_lat <= lat_max) and (lon_min <= stn_lon <= lon_max):
-                
-                print(f'--Searching for nearest WRF grid point to station {STN_value_land}...')
-                if (var_name_WRF == 'WS') or (var_name_WRF == 'WD'):  # Velocidad del viento
-                    u_value_WRF = float(extract_point_data(f'{ruta}/wrfout_{sim_name}_d0{domain_number}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'U10', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=0))
-                    v_value_WRF = float(extract_point_data(f'{ruta}/wrfout_{sim_name}_d0{domain_number}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'V10', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=0))
-                    if (var_name_WRF == 'WS'):
-                        valor_extraido = np.sqrt(u_value_WRF**2 + v_value_WRF**2)
-                    elif (var_name_WRF == 'WD'):
-                        data_WRF_U.loc[time_str.strftime('%Y-%m-%d %H:%M:%S'), STN_value_land] = u_value_WRF
-                        data_WRF_V.loc[time_str.strftime('%Y-%m-%d %H:%M:%S'), STN_value_land] = v_value_WRF
-                elif var_name_WRF == 'T':  # Temperatura
-                    valor_extraido = (float(extract_point_data(f'{ruta}/wrfout_{sim_name}_d0{domain_number}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=0))-273)
-                elif var_name_WRF == 'Q':  # Humedad específica
-                    # Obtener temperatura, punto de rocío y presión para calcular humedad específica
-                    t_value_WRF = (float(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=0))-273)
-                    p_value_WRF = float(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'PSFC', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=0))/100
-                    td_value_WRF = float(extract_point_data(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'td2', coords_KNMI_land_and_sea.loc[STN_value_land, 'LAT(north)'], coords_KNMI_land_and_sea.loc[STN_value_land, 'LON(east)'], time_idx=0))
-
-                    e_vapor = 6.112* math.exp(17.67*td_value_WRF/(td_value_WRF+243.5))
-
-                    valor_extraido = 0.622*(e_vapor)/(p_value_WRF-(0.378*e_vapor)) *1000
-                else:
-                    raise ValueError("Variable no válida para WRF.")
-                # breakpoint()
-                if var_name_WRF != 'WD':
-                    df_resultado_WRF_land.loc[time_str.strftime('%Y-%m-%d %H:%M:%S'), STN_value_land] = valor_extraido
-            else:
-                if (time_str == pd.to_datetime(df_resultado_land.index)[0]):
-                    print(f"La estación {STN_value_land} con latitud {stn_lat} y longitud {stn_lon} está fuera del dominio WRF.")
-        print('#####################################################')
-breakpoint()                
-
-def calcular_estadisticos(df_modelo, df_obs):
-    """
-    Calcula varios estadísticos entre el modelo y las observaciones en DataFrames bidimensionales.
-    
-    Parámetros:
-    - df_modelo: DataFrame con los datos del modelo (2D: estaciones/tiempo y variables)
-    - df_obs: DataFrame con los datos observados (2D: estaciones/tiempo y variables)
-    
-    Retorno:
-    - DataFrame con los estadísticos calculados para cada variable (o estación y tiempo, dependiendo de la estructura).
-    """
-
-    # Asegúrate de alinear bien los datos (por si tienen índices diferentes)
-    # Convertir todos los valores a numéricos, reemplazando lo que no se puede convertir por NaN
-    df_modelo = df_modelo.apply(pd.to_numeric, errors='coerce')
-    df_obs = df_obs.apply(pd.to_numeric, errors='coerce')
-    # Calcular el RMSE para cada punto en la matriz 2D
-    rmse_abs = np.sqrt(((((df_modelo - df_obs) ** 2)).sum().dropna()) / df_modelo.shape[0])
-
-    # Calcular el MAE para cada punto en la matriz 2D
-    mae_abs = ((df_modelo - df_obs).abs().sum())/df_modelo.shape[0]
-
-    # Calcular el bias para cada punto en la matriz 2D
-    biass = (((df_modelo - df_obs)).mean())/df_modelo.shape[0]
-
-    # Calcular la correlación de Pearson por columna
-    correlacion = df_modelo.corrwith(df_obs, axis=0)
-
-    # breakpoint()
-    # Combinar los estadísticos en un DataFrame
-    estadisticos = pd.DataFrame({
-        'RMSE': rmse_abs,
-        'MAE': mae_abs,
-        'Bias': biass,
-        'Pearson_r': correlacion,
-    })
-
-    return estadisticos
+    estadisticos = estadisticos[(estadisticos[['RMSE', 'MAE', 'Bias', 'Pearson_r']] != 0).all(axis=1)]
+    estadisticos = estadisticos.round(2)
 
 
-# Supongamos que ya tienes los DataFrames del modelo y de las observaciones
-# df_resultado_WRF_land es el DataFrame del modelo
-# df_resultado_land es el DataFrame de las observaciones
 
-estadisticos = calcular_estadisticos(df_resultado_WRF_land, df_resultado_land)
 
-# Mostrar los resultados de los estadísticos
-print("Estadísticos calculados:")
-print(estadisticos)
-pd.DataFrame([estadisticos.mean()]).round(2).to_csv(f'{ruta_actual}/misc/WRF_validation/Estadisticos_{var_name}_WRF_{sim_name}_vs_KNMIObs.csv', index = False)
+
+    # Paso 1: Unir el DataFrame `estadisticos` con `coords_KNMI_land_and_sea` usando el índice `STN`
+    # Esto agregará la columna `LOC` al DataFrame `estadisticos`
+    estadisticos = estadisticos.join(coords_KNMI_land_and_sea[['LOC', 'NAME']], how='left')
+
+    # Paso 2: Reiniciar el índice para convertir la columna `STN` (estación) en una columna regular
+    estadisticos.reset_index(inplace=True)
+    estadisticos.rename(columns={'index': 'STN'}, inplace=True)
+
+    # Paso 3: Reordenar las columnas para que `Estación` y `LOC` estén al principio
+    estadisticos = estadisticos[['NAME', 'LOC', 'RMSE', 'MAE', 'Bias', 'Pearson_r']]
+
+    # Paso 4: Ordenar el DataFrame `estadisticos` por la columna `LOC`
+    estadisticos = estadisticos.sort_values(by='LOC')
+
+    # Definir el colormap personalizado basado en RdYlGn_r
+    cmap_ref = plt.cm.RdYlGn_r
+    red_negative = cmap_ref(1.0)  # Rojo para valores negativos extremos
+    green_neutral = cmap_ref(0)  # Verde para valores cercanos a cero
+    red_positive = cmap_ref(1)  # Rojo para valores positivos extremos
+    colors = [red_negative, cmap_ref(0.75), cmap_ref(0.5), cmap_ref(0.25),  green_neutral, cmap_ref(0.25), cmap_ref(0.5), cmap_ref(0.75), red_positive]
+    cmap_custom = LinearSegmentedColormap.from_list("CustomRdYlGnRed", colors, N=256)
+
+    # Define el rango de colores para cada métrica
+
+    # Aplicar los estilos y guardar la imagen
+    apply_colored_styles(estadisticos)
 breakpoint()
+
 
 def rellenar_huecos(df, metodo='interpolacion'):
     """

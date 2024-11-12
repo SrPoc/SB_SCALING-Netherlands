@@ -204,7 +204,7 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
 
     # Ruta donde están los archivos WRF
     ruta = ruta_actual / 'data' / 'Models' / 'WRF' / sim_name
-    file_names_WRF = sorted(filename for filename in os.listdir(ruta) if filename.startswith(f"wrfout_d0{str(domain_n)}_{fecha}_"))
+    file_names_WRF = sorted(filename for filename in os.listdir(ruta) if filename.startswith(f"wrfout_{sim_name}_d0{str(domain_n)}_{fecha}_"))
     ###
 
     ds = xr.open_dataset(f'{ruta}/{file_names_WRF[0]}', engine='netcdf4')
@@ -242,8 +242,7 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
     # Iterar sobre los nombres de archivos y extraer la fecha y la hora
     for archivo in file_names_WRF:
         # Extraer la parte de la fecha y la hora del nombre del archivo
-        fecha_hora_str = archivo.split('_')[2] + "_" + archivo.split('_')[3].split('.')[0]
-        
+        fecha_hora_str = archivo.split('_')[4] + "_" + archivo.split('_')[5].split('.')[0]
         # Convertir la cadena a datetime usando el formato correspondiente
         fecha_hora_dt = pd.to_datetime(fecha_hora_str, format='%Y-%m-%d_%H')
         
@@ -258,8 +257,8 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
     # Iterar sobre cada archivo en file_names_WRF
     for file_name_WRF in file_names_WRF:
         
-        date_part = file_name_WRF.split('_')[2]  # "2014-07-15"
-        hour_part = file_name_WRF.split('_')[3].split('.')[0]  # "13"
+        date_part = file_name_WRF.split('_')[4]  # "2014-07-15"
+        hour_part = file_name_WRF.split('_')[5].split('.')[0]  # "13"
         
         # Convertir a yyyymmddHH
         yyyymmddHH = date_part.replace('-', '') + hour_part
@@ -269,7 +268,7 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
 
         print(f'#####################################################')
         print(f'#####{time_str} ...')
-
+        
         # SI LA VARIABLE ES WD, GENERO DOS DF DE DATOS PARA U Y V PARA HACER PLOTS 
         if (var_name == 'WD') and (time_str == pd.to_datetime([])):  # Aquí no usas un DataFrame ya existente
             data_WRF_U = pd.DataFrame()
@@ -287,16 +286,16 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
 
 
             # Obtener las coordenadas de latitud y longitud del archivo WRF
-            variable, lats, lons, times = process_wrf_file(f'{ruta}/wrfout_d02_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', time_idx=None)
+            variable, lats, lons, times = process_wrf_file(f'{ruta}/wrfout_{sim_name}_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', time_idx=None)
             lat_min, lat_max = float(lats.min()), float(lats.max())  # XLAT contiene las latitudes del WRF
             lon_min, lon_max = float(lons.min()), float(lons.max())
-
+            
             # Comprobar si la estación está dentro del rango del dominio de WRF
             if (lat_min <= stn_lat <= lat_max) and (lon_min <= stn_lon <= lon_max):
                 print(f'--Searching for nearest WRF grid point to station {STN_value_land}...')
                 if (var_name == 'WS') or (var_name == 'WD'):  # Velocidad del viento
-                    u_value_WRF = float(extract_point_data(f'{ruta}/wrfout_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'U10', stn_lat, stn_lon, time_idx=None))
-                    v_value_WRF = float(extract_point_data(f'{ruta}/wrfout_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'V10', stn_lat, stn_lon, time_idx=None))
+                    u_value_WRF = float(extract_point_data(f'{ruta}/wrfout_{sim_name}_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'U10', stn_lat, stn_lon, time_idx=None))
+                    v_value_WRF = float(extract_point_data(f'{ruta}/wrfout_{sim_name}_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'V10', stn_lat, stn_lon, time_idx=None))
 
                     if (var_name == 'WS'):
                         valor_extraido = np.sqrt(u_value_WRF**2 + v_value_WRF**2)
@@ -316,9 +315,9 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
 
                 elif var_name == 'Q':  # Humedad específica
                     # Obtener temperatura, punto de rocío y presión para calcular humedad específica
-                    t_value_WRF,_ = (float(extract_mean_around_point(f'{ruta}/wrfout_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', stn_lat, stn_lon, time_idx=None))-273)
-                    p_value_WRF,_ = float(extract_mean_around_point(f'{ruta}/wrfout_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'PSFC', stn_lat, stn_lon, time_idx=None))/100
-                    td_value_WRF,_ = float(extract_mean_around_point(f'{ruta}/wrfout_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'td2', stn_lat, stn_lon, time_idx=None))
+                    t_value_WRF,_ = (float(extract_mean_around_point(f'{ruta}/wrfout_{sim_name}_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', stn_lat, stn_lon, time_idx=None))-273)
+                    p_value_WRF,_ = float(extract_mean_around_point(f'{ruta}/wrfout_{sim_name}_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'PSFC', stn_lat, stn_lon, time_idx=None))/100
+                    td_value_WRF,_ = float(extract_mean_around_point(f'{ruta}/wrfout_{sim_name}_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'td2', stn_lat, stn_lon, time_idx=None))
 
                     e_vapor = 6.112* math.exp(17.67*td_value_WRF/(td_value_WRF+243.5))
                     valor_extraido = 0.622*(e_vapor)/(p_value_WRF-(0.378*e_vapor)) *1000
@@ -332,7 +331,7 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
 
                 else:  
                     
-                    pre_valor_extraido, _ = extract_mean_around_point(f'{ruta}/wrfout_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', var_name, stn_lat, stn_lon, time_idx=None)
+                    pre_valor_extraido, _ = extract_mean_around_point(f'{ruta}/wrfout_{sim_name}_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', var_name, stn_lat, stn_lon, time_idx=None)
                     if 'soil_layers_stag' in pre_valor_extraido.dims:
                         post_valor_extraido = pre_valor_extraido.sel(soil_layers_stag=0).item()
                     else: 
