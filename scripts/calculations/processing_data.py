@@ -75,9 +75,9 @@ def generate_KNMI_df_STNvsDATETIME(fecha, var_name, STN = 'all'):
         raise ValueError(f"La variable '{var_name}' no está en la lista de variables permitidas.")
 
     ### LEO LOS FICHEROS DE LAS COORDENADAS DE LAS ESTACIONES
-    coords_KNMI_land = pd.read_csv(ruta_coords_KNMI_land, sep=';', header=0, usecols=[0, 1, 2, 4])
+    coords_KNMI_land = pd.read_csv(ruta_coords_KNMI_land, sep=',', header=0, usecols=['STN', 'LON(east)', 'LAT(north)', 'ALT(m)', 'LOC'])
     coords_KNMI_land.set_index('STN', inplace=True)
-    coords_KNMI_NorthSea = pd.read_csv(ruta_coords_KNMI_NorthSea, sep=';', header=0)
+    coords_KNMI_NorthSea = pd.read_csv(ruta_coords_KNMI_NorthSea, sep=',', header=0, usecols=['STN', 'LON(east)', 'LAT(north)', 'ALT(m)', 'LOC'])
     coords_KNMI_NorthSea.set_index('STN', inplace=True)
 
     coords_KNMI_land_and_sea = pd.concat([coords_KNMI_land, coords_KNMI_NorthSea])
@@ -220,9 +220,9 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
 
 
     ### LEO LOS FICHEROS DE LAS COORDENADAS DE LAS ESTACIONES
-    coords_KNMI_land = pd.read_csv(ruta_coords_KNMI_land, sep=';', header=0, usecols=[0, 1, 2, 4])
+    coords_KNMI_land = pd.read_csv(ruta_coords_KNMI_land, sep=',', header=0, usecols=['STN', 'LON(east)', 'LAT(north)', 'ALT(m)', 'LOC'])
     coords_KNMI_land.set_index('STN', inplace=True)
-    coords_KNMI_NorthSea = pd.read_csv(ruta_coords_KNMI_NorthSea, sep=';', header=0)
+    coords_KNMI_NorthSea = pd.read_csv(ruta_coords_KNMI_NorthSea, sep=',', header=0, usecols=['STN', 'LON(east)', 'LAT(north)', 'ALT(m)', 'LOC'])
     coords_KNMI_NorthSea.set_index('STN', inplace=True)
 
     coords_KNMI_land_and_sea = pd.concat([coords_KNMI_land, coords_KNMI_NorthSea])

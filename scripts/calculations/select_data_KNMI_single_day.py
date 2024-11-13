@@ -31,7 +31,7 @@ ruta_datos_KNMI_NorthSea = ruta_actual / 'data' / 'Obs' / 'KNMI_NorthSea'
 ruta_coords_KNMI_land = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_land.csv'
 ruta_coords_KNMI_NorthSea = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_NorthSea.csv'
 
-compute_data = False # si compute_data == True calcula los datos, si no, los importa
+compute_data = True # si compute_data == True calcula los datos, si no, los importa
 
 ### PARÁMETROS:
 sim_name = 'PrelimSim_I'
@@ -204,7 +204,7 @@ if compute_data == True:
             print('#####################################################')
                 
 
-    def calcular_estadisticos(df_modelo, df_obs):
+    def calcular_estadisticos(df_modelo, df_obs, str_units):
         """
         Calcula varios estadísticos entre el modelo y las observaciones en DataFrames bidimensionales.
         
@@ -227,7 +227,7 @@ if compute_data == True:
         mae_abs = ((df_modelo - df_obs).abs().sum())/df_modelo.shape[0]
 
         # Calcular el bias para cada punto en la matriz 2D
-        biass = (((df_modelo - df_obs)).mean())/df_modelo.shape[0]
+        biass = (((df_modelo - df_obs)).sum())/df_modelo.shape[0]
 
         # Calcular la correlación de Pearson por columna
         correlacion = df_modelo.corrwith(df_obs, axis=0)
@@ -235,10 +235,10 @@ if compute_data == True:
         # breakpoint()
         # Combinar los estadísticos en un DataFrame
         estadisticos = pd.DataFrame({
-            'RMSE': rmse_abs,
-            'MAE': mae_abs,
-            'Bias': biass,
-            'Pearson_r': correlacion,
+            f'RMSE ({str(str_units)})': rmse_abs,
+            f'MAE ({str(str_units)})': mae_abs,
+            f'Bias ({str(str_units)})': biass,
+            'Pearson coeff': correlacion,
         })
 
         return estadisticos
@@ -259,7 +259,7 @@ if compute_data == True:
             timestamps_init_fin = (f'{date_of_interest} 08:00:00', f'{date_of_interest} 11:00:00')
         elif period_computation == 'all':
             timestamps_init_fin = (f'{date_of_interest} 00:00:00', f'{date_of_interest} 23:00:00')
-        estadisticos = calcular_estadisticos(df_resultado_WRF_land.loc[timestamps_init_fin[0]:timestamps_init_fin[1],:], df_resultado_land.loc[timestamps_init_fin[0]:timestamps_init_fin[1],:])
+        estadisticos = calcular_estadisticos(df_resultado_WRF_land.loc[timestamps_init_fin[0]:timestamps_init_fin[1],:], df_resultado_land.loc[timestamps_init_fin[0]:timestamps_init_fin[1],:], var_units)
 
         # Mostrar los resultados de los estadísticos
         print("Estadísticos calculados:")
@@ -267,7 +267,7 @@ if compute_data == True:
         # pd.DataFrame([estadisticos.mean()]).round(2).to_csv(f'{ruta_actual}/misc/WRF_validation/Estadisticos_{var_name}_WRF_{sim_name}_vs_KNMIObs.csv', index = False)
         
         estadisticos.to_csv(f'{ruta_actual}/misc/WRF_validation/scores_{var_name}_{sim_name}_{date_of_interest}_{period_computation}.csv')
-        estadisticos = estadisticos[(estadisticos[['RMSE', 'MAE', 'Bias', 'Pearson_r']] != 0).all(axis=1)]
+        estadisticos = estadisticos[(estadisticos[[f'RMSE ({str(var_units)})', f'MAE ({str(var_units)})', f'Bias ({str(var_units)})', 'Pearson coeff']] != 0).all(axis=1)]
         estadisticos = estadisticos.round(2)
 
 ### LEO LOS FICHEROS DE LAS COORDENADAS DE LAS ESTACIONES
@@ -288,13 +288,13 @@ def apply_colored_styles(df):
     ax.axis('off')
 
     # Aplicar colores de gradiente en cada métrica
-    norm_rmse = plt.Normalize(0, df['RMSE'].max())
+    norm_rmse = plt.Normalize(0, df[f'RMSE ({str(var_units)})'].max())
 
     # Usar TwoSlopeNorm para centrar el color verde en 0 en la columna Bias, pero con el mismo rango de Bias
-    max_bias = max(abs(df['Bias'].min()), abs(df['Bias'].max()))
+    max_bias = max(abs(df[f'Bias ({str(var_units)})'].min()), abs(df[f'Bias ({str(var_units)})'].max()))
     norm_bias = mcolors.TwoSlopeNorm(vmin=-max_bias, vcenter=0, vmax=max_bias)
 
-    norm_mae = plt.Normalize(df['MAE'].min(), df['MAE'].max())
+    norm_mae = plt.Normalize(df[f'MAE ({str(var_units)})'].min(), df[f'MAE ({str(var_units)})'].max())
     norm_r = plt.Normalize(-1, 1)
 
     # Crear la tabla en matplotlib
@@ -308,19 +308,19 @@ def apply_colored_styles(df):
     # Colorear las celdas de RMSE, Bias, MAE
     for i in range(len(df)):
         # Color para RMSE
-        color_rmse = plt.cm.RdYlGn(1 - norm_rmse(df['RMSE'].iloc[i]))  # Rojo a Verde
+        color_rmse = plt.cm.RdYlGn(1 - norm_rmse(df[f'RMSE ({str(var_units)})'].iloc[i]))  # Rojo a Verde
         table[i+1, 2].set_facecolor(color_rmse)
 
         # Color para Bias (usando RdYlGn y centrado en 0 con el mismo tono de verde y rojo que MAE)
-        color_bias = cmap_custom(norm_bias(df['Bias'].iloc[i]))
+        color_bias = cmap_custom(norm_bias(df[f'Bias ({str(var_units)})'].iloc[i]))
         table[i+1, 4].set_facecolor(color_bias)
 
         # Color para MAE
-        color_mae = plt.cm.RdYlGn(1 - norm_mae(df['MAE'].iloc[i]))  # Rojo a Verde
+        color_mae = plt.cm.RdYlGn(1 - norm_mae(df[f'MAE ({str(var_units)})'].iloc[i]))  # Rojo a Verde
         table[i+1, 3].set_facecolor(color_mae)
 
         # Color para pearson_r
-        color_r = plt.cm.RdYlGn(norm_r(df['Pearson_r'].iloc[i]))
+        color_r = plt.cm.RdYlGn(norm_r(df['Pearson coeff'].iloc[i]))
         table[i+1, 5].set_facecolor(color_r)
 
     # Ajustar el diseño
@@ -348,11 +348,8 @@ for period_computation in periods_computation:
     estadisticos = pd.read_csv(f'{ruta_actual}/misc/WRF_validation/scores_{var_name}_{sim_name}_{date_of_interest}_{period_computation}.csv', index_col = 0)
     # Filtrar las filas que tienen un valor 0 en cualquier columna de métricas
     
-    estadisticos = estadisticos[(estadisticos[['RMSE', 'MAE', 'Bias', 'Pearson_r']] != 0).all(axis=1)]
+    estadisticos = estadisticos[(estadisticos[[f'RMSE ({str(var_units)})', f'MAE ({str(var_units)})', f'Bias ({str(var_units)})', 'Pearson coeff']] != 0).all(axis=1)]
     estadisticos = estadisticos.round(2)
-
-
-
 
 
     # Paso 1: Unir el DataFrame `estadisticos` con `coords_KNMI_land_and_sea` usando el índice `STN`
@@ -364,10 +361,19 @@ for period_computation in periods_computation:
     estadisticos.rename(columns={'index': 'STN'}, inplace=True)
 
     # Paso 3: Reordenar las columnas para que `Estación` y `LOC` estén al principio
-    estadisticos = estadisticos[['NAME', 'LOC', 'RMSE', 'MAE', 'Bias', 'Pearson_r']]
+    estadisticos = estadisticos[['NAME', 'LOC', f'RMSE ({str(var_units)})', f'MAE ({str(var_units)})', f'Bias ({str(var_units)})', 'Pearson coeff']]
 
     # Paso 4: Ordenar el DataFrame `estadisticos` por la columna `LOC`
     estadisticos = estadisticos.sort_values(by='LOC')
+
+    # Define el orden deseado para la columna `LOC`
+    order = ["sea", "coast", "center", "east", "north", "south", "rest"]
+
+    # Convierte la columna LOC a una categoría con el orden deseado
+    estadisticos['LOC'] = pd.Categorical(estadisticos['LOC'], categories=order, ordered=True)
+
+    # Ordena el DataFrame por la columna `LOC` y luego por cualquier otra columna que desees (por ejemplo, `NAME`)
+    estadisticos = estadisticos.sort_values(by=['LOC', 'NAME'])
 
     # Definir el colormap personalizado basado en RdYlGn_r
     cmap_ref = plt.cm.RdYlGn_r

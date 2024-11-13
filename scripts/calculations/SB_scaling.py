@@ -371,7 +371,9 @@ df_WD_data_date = df_Tsup.loc['2014-07-16']
 df_WD_data_resampled = df_WD_data_date.resample('10min').interpolate()
 df_WD_data_resampled.index = df_WD_data_resampled.index.tz_localize('UTC')
 df_resultado_KNMI_sea, aux = generate_KNMI_df_STNvsDATETIME('2014-07-16', 'TZ',STN=320)
-
+df_resultado_KNMI_sea, aux = generate_KNMI_df_STNvsDATETIME('2014-07-16', 'T',STN=320)
+df_resultado_KNMI_sea, aux = generate_KNMI_df_STNvsDATETIME('2014-07-16', 'T',STN=215)
+breakpoint()
 indice_completo = pd.date_range(start="2014-07-16 00:00:00", end="2014-07-16 23:50:00", freq="10min", tz="UTC")
 delta_T = df_WD_data_resampled['TS00'] - df_resultado_KNMI_sea[320].resample('10min').nearest().reindex(indice_completo, method='nearest')
 delta_T.name = 'delta_T'
