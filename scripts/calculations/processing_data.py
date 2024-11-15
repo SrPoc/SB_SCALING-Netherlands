@@ -315,9 +315,10 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
 
                 elif var_name == 'Q':  # Humedad específica
                     # Obtener temperatura, punto de rocío y presión para calcular humedad específica
-                    t_value_WRF,_ = (float(extract_mean_around_point(f'{ruta}/wrfout_{sim_name}_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', stn_lat, stn_lon, time_idx=None))-273)
-                    p_value_WRF,_ = float(extract_mean_around_point(f'{ruta}/wrfout_{sim_name}_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'PSFC', stn_lat, stn_lon, time_idx=None))/100
-                    td_value_WRF,_ = float(extract_mean_around_point(f'{ruta}/wrfout_{sim_name}_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'td2', stn_lat, stn_lon, time_idx=None))
+
+                    t_value_WRF = (float(extract_mean_around_point(f'{ruta}/wrfout_{sim_name}_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'T2', stn_lat, stn_lon, time_idx=None)[0])-273)
+                    p_value_WRF = float(extract_mean_around_point(f'{ruta}/wrfout_{sim_name}_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'PSFC', stn_lat, stn_lon, time_idx=None)[0])/100
+                    td_value_WRF = float(extract_mean_around_point(f'{ruta}/wrfout_{sim_name}_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', 'td2', stn_lat, stn_lon, time_idx=None)[0])
 
                     e_vapor = 6.112* math.exp(17.67*td_value_WRF/(td_value_WRF+243.5))
                     valor_extraido = 0.622*(e_vapor)/(p_value_WRF-(0.378*e_vapor)) *1000
@@ -330,12 +331,16 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
                     df_resultado_WRF.loc[time_str, STN_value_land] = valor_extraido
 
                 else:  
-                    
+
                     pre_valor_extraido, _ = extract_mean_around_point(f'{ruta}/wrfout_{sim_name}_d0{domain_n}_{time_str.strftime("%Y-%m-%d_%H")}.nc', var_name, stn_lat, stn_lon, time_idx=None)
                     if 'soil_layers_stag' in pre_valor_extraido.dims:
                         post_valor_extraido = pre_valor_extraido.sel(soil_layers_stag=0).item()
+                    elif 'bottom_top' in pre_valor_extraido.dims:
+                        if var_name == 'QVAPOR': 
+                            post_valor_extraido = pre_valor_extraido.sel(bottom_top=0).item() * 1000
                     else: 
                         post_valor_extraido = pre_valor_extraido
+
                     valor_extraido = (float(post_valor_extraido))
 
                     # Si la estación (columna) aún no existe, añadirla

@@ -31,7 +31,7 @@ ruta_datos_KNMI_NorthSea = ruta_actual / 'data' / 'Obs' / 'KNMI_NorthSea'
 ruta_coords_KNMI_land = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_land.csv'
 ruta_coords_KNMI_NorthSea = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_NorthSea.csv'
 
-compute_data = True # si compute_data == True calcula los datos, si no, los importa
+compute_data = False # si compute_data == True calcula los datos, si no, los importa
 
 ### PARÁMETROS:
 sim_name = 'PrelimSim_I'
@@ -280,10 +280,15 @@ coords_KNMI_land_and_sea = pd.concat([coords_KNMI_land, coords_KNMI_NorthSea])
 
 def apply_colored_styles(df):
     # Normalizar cada columna de métricas y aplicar color
-    fig, ax = plt.subplots(figsize=figsizee)  # Ajusta el tamaño según sea necesario
+    fig, ax = plt.subplots()  # Ajusta el tamaño según sea necesario
     # Añadir el título a la tabla
 
-    plt.title(f"{var_name} scores for {datetime.strptime(timestamps_init_fin[0], '%Y-%m-%d %H:%M:%S').strftime('%d%b %H:%M').lower()} - {datetime.strptime(timestamps_init_fin[1], '%Y-%m-%d %H:%M:%S').strftime('%d%b %H:%M').lower()}", fontsize=16, fontweight="bold", pad=20)  # Título en negrita y con espacio
+    # plt.title(f"{var_name} scores for {datetime.strptime(timestamps_init_fin[0], '%Y-%m-%d %H:%M:%S').strftime('%d%b %H:%M').lower()} - {datetime.strptime(timestamps_init_fin[1], '%Y-%m-%d %H:%M:%S').strftime('%d%b %H:%M').lower()}", fontsize=16, fontweight="bold", pad=20)  # Título en negrita y con espacio
+    fig.text(
+        0.5, 1.25,  # Centrado en x y muy cerca del borde superior en y
+        f"{var_name} scores for {datetime.strptime(timestamps_init_fin[0], '%Y-%m-%d %H:%M:%S').strftime('%d%b %H:%M').lower()} - {datetime.strptime(timestamps_init_fin[1], '%Y-%m-%d %H:%M:%S').strftime('%d%b %H:%M').lower()}",
+        fontsize=16, fontweight="bold", ha='center'  # Alineado al centro horizontal y al borde superior
+    )
     # Ocultar los ejes
     ax.axis('off')
 
@@ -294,11 +299,14 @@ def apply_colored_styles(df):
     max_bias = max(abs(df[f'Bias ({str(var_units)})'].min()), abs(df[f'Bias ({str(var_units)})'].max()))
     norm_bias = mcolors.TwoSlopeNorm(vmin=-max_bias, vcenter=0, vmax=max_bias)
 
-    norm_mae = plt.Normalize(df[f'MAE ({str(var_units)})'].min(), df[f'MAE ({str(var_units)})'].max())
+    norm_mae = plt.Normalize(0, df[f'MAE ({str(var_units)})'].max())
     norm_r = plt.Normalize(-1, 1)
 
     # Crear la tabla en matplotlib
     table = ax.table(cellText=df.values, colLabels=df.columns, cellLoc='center', loc='center')
+    
+    # Ajustar automáticamente el ancho de cada columna en función del contenido
+    table.auto_set_column_width(list(range(len(df.columns))))
 
     # Aplicar el estilo al encabezado (nombres de las columnas en negrita y tamaño más grande)
     for (i, key) in enumerate(df.columns):
@@ -309,19 +317,19 @@ def apply_colored_styles(df):
     for i in range(len(df)):
         # Color para RMSE
         color_rmse = plt.cm.RdYlGn(1 - norm_rmse(df[f'RMSE ({str(var_units)})'].iloc[i]))  # Rojo a Verde
-        table[i+1, 2].set_facecolor(color_rmse)
-
-        # Color para Bias (usando RdYlGn y centrado en 0 con el mismo tono de verde y rojo que MAE)
-        color_bias = cmap_custom(norm_bias(df[f'Bias ({str(var_units)})'].iloc[i]))
-        table[i+1, 4].set_facecolor(color_bias)
+        table[i+1, df.columns.get_loc(f'RMSE ({str(var_units)})')].set_facecolor(color_rmse)
 
         # Color para MAE
         color_mae = plt.cm.RdYlGn(1 - norm_mae(df[f'MAE ({str(var_units)})'].iloc[i]))  # Rojo a Verde
-        table[i+1, 3].set_facecolor(color_mae)
+        table[i+1, df.columns.get_loc(f'MAE ({str(var_units)})')].set_facecolor(color_mae)
+
+        # Color para Bias (usando RdYlGn y centrado en 0 con el mismo tono de verde y rojo que MAE)
+        color_bias = cmap_custom(norm_bias(df[f'Bias ({str(var_units)})'].iloc[i]))
+        table[i+1, df.columns.get_loc(f'Bias ({str(var_units)})')].set_facecolor(color_bias)
 
         # Color para pearson_r
         color_r = plt.cm.RdYlGn(norm_r(df['Pearson coeff'].iloc[i]))
-        table[i+1, 5].set_facecolor(color_r)
+        table[i+1, df.columns.get_loc('Pearson coeff')].set_facecolor(color_r)
 
     # Ajustar el diseño
     table.auto_set_font_size(False)
@@ -375,6 +383,8 @@ for period_computation in periods_computation:
     # Ordena el DataFrame por la columna `LOC` y luego por cualquier otra columna que desees (por ejemplo, `NAME`)
     estadisticos = estadisticos.sort_values(by=['LOC', 'NAME'])
 
+    # estadisticos = estadisticos.groupby('LOC').mean(numeric_only=True).round(2)
+    
     # Definir el colormap personalizado basado en RdYlGn_r
     cmap_ref = plt.cm.RdYlGn_r
     red_negative = cmap_ref(1.0)  # Rojo para valores negativos extremos

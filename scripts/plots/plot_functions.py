@@ -1,6 +1,6 @@
 
 
-def simple_ts_plot(df_plot_x, df_plot_y, color='k', data_label='', figsize=(10, 6), 
+def simple_ts_plot(df_plot_x, df_plot_y, color='k', data_label='', linestyle = '-', figsize=(10, 6), 
                    tuple_xlim=None, tuple_ylim=None, str_ylabel='', str_title='', legend_loc='best', 
                    str_savefig=None, ax=None):
     """
@@ -35,7 +35,7 @@ def simple_ts_plot(df_plot_x, df_plot_y, color='k', data_label='', figsize=(10, 
         fig = ax.get_figure()  # Obtener la figura a partir del eje si ax está dado
 
     # Graficar la serie de datos proporcionada
-    ax.plot(df_plot_x, df_plot_y, label=data_label, color=color)
+    ax.plot(df_plot_x, df_plot_y, label=data_label, color=color, linestyle = linestyle)
 
     # Añadir etiquetas y título
     ax.set_xlabel('Hour (UTC)')
