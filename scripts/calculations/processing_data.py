@@ -270,7 +270,7 @@ def generate_WRF_df_STNvsDATETIME(domain_n, sim_name, fecha, var_name, STN = 'al
         print(f'#####{time_str} ...')
         
         # SI LA VARIABLE ES WD, GENERO DOS DF DE DATOS PARA U Y V PARA HACER PLOTS 
-        if (var_name == 'WD') and (time_str == pd.to_datetime([])):  # Aquí no usas un DataFrame ya existente
+        if (var_name == 'WD') and (yyyymmddHH == file_names_WRF[0].split('_')[4].replace('-', '') + file_names_WRF[0].split('_')[5].split('.')[0]):  # Aquí no usas un DataFrame ya existente
             data_WRF_U = pd.DataFrame()
             data_WRF_V = pd.DataFrame()
 
