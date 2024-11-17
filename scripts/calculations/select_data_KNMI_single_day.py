@@ -31,10 +31,10 @@ ruta_datos_KNMI_NorthSea = ruta_actual / 'data' / 'Obs' / 'KNMI_NorthSea'
 ruta_coords_KNMI_land = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_land.csv'
 ruta_coords_KNMI_NorthSea = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_NorthSea.csv'
 
-compute_data = False # si compute_data == True calcula los datos, si no, los importa
+compute_data = True # si compute_data == True calcula los datos, si no, los importa
 
 ### PARÁMETROS:
-sim_name = 'PrelimSim_I'
+sim_name = 'Sim_4'
 domain_number = '2'
 date_of_interest = '2014-07-16'
 
@@ -146,10 +146,9 @@ if compute_data == True:
         
         # Convertir a yyyymmddHH
         yyyymmddHH = date_part.replace('-', '') + hour_part
-        
+
         # Convertir yyyymmddHH a un formato de datetime compatible con el índice del DataFrame
         time_str = pd.to_datetime(yyyymmddHH, format='%Y%m%d%H')
-
         # Buscar la fila correspondiente en df_resultado_land
         if time_str in pd.to_datetime(df_resultado_land.index):
             print('#####################################################')
@@ -266,7 +265,7 @@ if compute_data == True:
         print(estadisticos)
         # pd.DataFrame([estadisticos.mean()]).round(2).to_csv(f'{ruta_actual}/misc/WRF_validation/Estadisticos_{var_name}_WRF_{sim_name}_vs_KNMIObs.csv', index = False)
         
-        estadisticos.to_csv(f'{ruta_actual}/misc/WRF_validation/scores_{var_name}_{sim_name}_{date_of_interest}_{period_computation}.csv')
+        estadisticos.to_csv(f'{ruta_actual}/misc/WRF_validation_csv_files/{sim_name}/scores_{var_name}_{sim_name}_{date_of_interest}_{period_computation}.csv')
         estadisticos = estadisticos[(estadisticos[[f'RMSE ({str(var_units)})', f'MAE ({str(var_units)})', f'Bias ({str(var_units)})', 'Pearson coeff']] != 0).all(axis=1)]
         estadisticos = estadisticos.round(2)
 
@@ -285,7 +284,7 @@ def apply_colored_styles(df):
 
     # plt.title(f"{var_name} scores for {datetime.strptime(timestamps_init_fin[0], '%Y-%m-%d %H:%M:%S').strftime('%d%b %H:%M').lower()} - {datetime.strptime(timestamps_init_fin[1], '%Y-%m-%d %H:%M:%S').strftime('%d%b %H:%M').lower()}", fontsize=16, fontweight="bold", pad=20)  # Título en negrita y con espacio
     fig.text(
-        0.5, 1.25,  # Centrado en x y muy cerca del borde superior en y
+        0.5, 1.5,  # Centrado en x y muy cerca del borde superior en y
         f"{var_name} scores for {datetime.strptime(timestamps_init_fin[0], '%Y-%m-%d %H:%M:%S').strftime('%d%b %H:%M').lower()} - {datetime.strptime(timestamps_init_fin[1], '%Y-%m-%d %H:%M:%S').strftime('%d%b %H:%M').lower()}",
         fontsize=16, fontweight="bold", ha='center'  # Alineado al centro horizontal y al borde superior
     )
@@ -337,7 +336,7 @@ def apply_colored_styles(df):
     table.scale(1.2, 1.2)  # Escalar para un tamaño adecuado
 
     # Guardar la tabla como imagen PNG
-    plt.savefig(f"{ruta_actual}/misc/scores_{var_name}_{sim_name}_{date_of_interest}_{period_computation}_allstat_colors.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"{ruta_actual}/misc/WRF_validation_tables/{sim_name}/scores_{var_name}_{sim_name}_{date_of_interest}_{period_computation}_allstat_colors.png", dpi=300, bbox_inches="tight")
     plt.show()
 
 for period_computation in periods_computation:
@@ -353,7 +352,7 @@ for period_computation in periods_computation:
         timestamps_init_fin = (f'{date_of_interest} 00:00:00', f'{date_of_interest} 23:00:00')
     
 
-    estadisticos = pd.read_csv(f'{ruta_actual}/misc/WRF_validation/scores_{var_name}_{sim_name}_{date_of_interest}_{period_computation}.csv', index_col = 0)
+    estadisticos = pd.read_csv(f'{ruta_actual}/misc/WRF_validation_csv_files/{sim_name}/scores_{var_name}_{sim_name}_{date_of_interest}_{period_computation}.csv', index_col = 0)
     # Filtrar las filas que tienen un valor 0 en cualquier columna de métricas
     
     estadisticos = estadisticos[(estadisticos[[f'RMSE ({str(var_units)})', f'MAE ({str(var_units)})', f'Bias ({str(var_units)})', 'Pearson coeff']] != 0).all(axis=1)]

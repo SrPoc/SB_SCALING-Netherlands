@@ -60,7 +60,6 @@ def process_wrf_file(file_path, var_name, time_idx=None):
 
                 # Aplicar la corrección de V10 en m/s
                 variable = u10 * sinalpha + variable * cosalpha
-
         # Retornar la variable corregida (si aplica), junto con las coordenadas y tiempos
         return variable, lats, lons, times
         

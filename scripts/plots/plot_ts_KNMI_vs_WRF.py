@@ -23,7 +23,7 @@ from processing_data import generate_KNMI_df_STNvsDATETIME, generate_WRF_df_STNv
 from plot_functions import simple_ts_plot
 
 
-var_name = 'WD'
+var_name = 'T'
 
 # PARAMETERS KNMI
 var_units = 'g/kg'
@@ -31,7 +31,7 @@ date_of_interest = '2014-07-16'
 
 # PARAMETERS WRF
 var_units = 'g/kg'
-sim_name = 'PrelimSim_I'
+sim_name = 'Sim_4'
 domain_number = '2'
 
 cbar_lims_both=(11, 25) #serán iguales para los dos, KNMI y WRF
@@ -66,6 +66,14 @@ elif var_name == 'Q':
     var_units = 'g/kg'
     factor_kelvin_to_celsius = 0
     factor_g_to_kg = 10
+elif var_name == 'WD':
+    var_name_land = 'DD'
+    var_name_sea = 'DD'
+    var_name_WRF_land = 'WD'
+    var_name_WRF_sea = 'WD'
+    var_units = ''
+    factor_kelvin_to_celsius = 0
+    factor_g_to_kg = 0
 else: 
     var_name_land = var_name
     var_name_sea = var_name
@@ -102,7 +110,7 @@ for idx_region, region in enumerate(regions_of_interest):
     for stn in np.array(coords_KNMI_land_and_sea[coords_KNMI_land_and_sea['LOC']== region].index):
         if  (var_name == 'T'):
             if (region == 'sea'):
-                var_name_WRF = 'TSK'
+                var_name_WRF = 'TSK' # cambiar a 'T2' si quieres comparar con la T a 2m
             else:
                 var_name_WRF = 'T2'
         elif (var_name == 'WS'):
@@ -111,6 +119,7 @@ for idx_region, region in enumerate(regions_of_interest):
             var_name_WRF = 'Q'
         elif (var_name == 'WD'):
             var_name_WRF = 'WD'
+
         df_resultado_WRF_land_stn, _ = generate_WRF_df_STNvsDATETIME(domain_number, sim_name, date_of_interest, var_name_WRF, STN=stn)
         df_regions_WRF[idx_region] = pd.concat([df_regions_WRF[idx_region],(df_resultado_WRF_land_stn - factor_kelvin_to_celsius)], axis = 1)
 
@@ -119,7 +128,7 @@ for idx_region, region in enumerate(regions_of_interest):
     for stn in np.array(coords_KNMI_land_and_sea[coords_KNMI_land_and_sea['LOC']== region].index):
         if  (var_name == 'T'):
             if (region == 'sea'):
-                var_name_KNMI = 'TZ'
+                var_name_KNMI = 'TZ' # cambiar a 'T' si quieres comparar con la T a 1.5m
             else:
                 var_name_KNMI = 'T'
         elif (var_name == 'WS'):
@@ -164,12 +173,8 @@ for idx_dfs, dfs in enumerate((df_regions_KNMI, df_regions_WRF)):
             elif idx_dfs == 0:
                 df_medias_horaria_KNMI[idxx_region] = df_region.mean(axis = 1)
                 df_std_horaria_KNMI[idxx_region] = df_region.std(axis = 1)   
-breakpoint()
 
-ylims_WRF = (pd.concat(df_regions_WRF).min().min(), pd.concat(df_regions_WRF).max().max())
-ylims_KNMI = (pd.concat(df_regions_KNMI).min().min(), pd.concat(df_regions_KNMI).max().max())
-ylims_figura = (min(ylims_WRF[0], ylims_WRF[1], ylims_KNMI[0], ylims_KNMI[1]),
-                max(ylims_WRF[0], ylims_WRF[1], ylims_KNMI[0], ylims_KNMI[1]))
+
 colors = ['#B89A27', '#4A9A9A', '#9F5BB2']
 fig, ax = plt.subplots(figsize = (12,12))
 ax.axis('off')
@@ -180,6 +185,8 @@ ax2.fill_between(df_medias_horaria_KNMI[0].index,
                     pd.to_numeric(df_medias_horaria_KNMI[0] - df_std_horaria_KNMI[0], errors='coerce'), 
                     pd.to_numeric(df_medias_horaria_KNMI[0] + df_std_horaria_KNMI[0], errors='coerce'), 
                     color=colors[0], alpha=0.2)
+
+
 simple_ts_plot(df_medias_horaria_WRF[0].index, df_medias_horaria_WRF[0], color=colors[0], linestyle = '--', data_label=f'{var_name_WRF_sea} (WRF)', ax = ax2, str_title = f'"Sea" region', str_ylabel = var_units)
 ax2.fill_between(df_medias_horaria_WRF[0].index, 
                     pd.to_numeric(df_medias_horaria_WRF[0] - df_std_horaria_WRF[0], errors='coerce'), 
@@ -211,9 +218,13 @@ ax3.fill_between(df_medias_horaria_WRF[2].index,
 
 for ax_i in [ax1, ax2, ax3]:
     if var_name=='WD':
-        ax_i.set_yticks([0, 45, 90, 180, 270, 360])
-        ax_i.set_yticklabels(['S', 'W', 'N', 'E', 'S'])
+        ax_i.set_yticks([0, 90, 180, 270, 360])
+        ax_i.set_yticklabels(['N', 'E', 'S', 'W', 'N'])
     else:
+        ylims_WRF = (pd.concat(df_regions_WRF).min().min(), pd.concat(df_regions_WRF).max().max())
+        ylims_KNMI = (pd.concat(df_regions_KNMI).min().min(), pd.concat(df_regions_KNMI).max().max())
+        ylims_figura = (min(ylims_WRF[0], ylims_WRF[1], ylims_KNMI[0], ylims_KNMI[1]),
+                        max(ylims_WRF[0], ylims_WRF[1], ylims_KNMI[0], ylims_KNMI[1]))
         ax_i.set_ylim(ylims_figura)
 
 plt.savefig(f'{ruta_actual}/figs/ts/{var_name}_{sim_name}_AVG-region_comparison.png')
