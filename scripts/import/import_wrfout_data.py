@@ -77,8 +77,6 @@ def process_wrf_file(file_path, var_name, time_idx=None):
             dataset.close()
 
 
-
-
 def extract_point_data(file_path, var_name, lat_point, lon_point, time_idx=None, level_idx=None):
     """
     Extrae los datos de una variable en el punto más cercano a unas coordenadas específicas (latitud y longitud),

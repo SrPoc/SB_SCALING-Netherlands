@@ -36,9 +36,9 @@ def plot_wrf_variable(variable, lats, lons, fig, subplot_idx, cbar_lims, cmap = 
     # Añadimos un nuevo subplot a la figura en la posición indicada (subplot_idx)
     ax = fig.add_subplot(subplot_idx, projection=ccrs.PlateCarree())
     
-    
+
     # Dibujamos la variable como un mapa de contornos en el eje proporcionado
-    contour = ax.contourf(to_np(lons), to_np(lats), to_np(variable), 10, cmap=cmap, transform=ccrs.PlateCarree(), extend='both',  levels = np.linspace(np.round(cbar_lims[0],0), np.round(cbar_lims[1],0), 20))#, vmin=cbar_lims[0], vmax=cbar_lims[1])
+    contour = ax.contourf(to_np(lons), to_np(lats), to_np(variable), 10, cmap=cmap, transform=ccrs.PlateCarree(), extend='both',  levels = np.round(np.linspace(cbar_lims[0], cbar_lims[1], 20), 4))#, vmin=cbar_lims[0], vmax=cbar_lims[1])
     
     # Añadimos las características geográficas
     ax.coastlines()
@@ -47,11 +47,12 @@ def plot_wrf_variable(variable, lats, lons, fig, subplot_idx, cbar_lims, cmap = 
     ax.add_feature(cfeature.STATES, linewidth=0.3)
     
     # Añadimos la barra de colores en el lateral (vertical)
-    cbar = fig.colorbar(contour, ax=ax, orientation='vertical', label=f"{variable.name} ({variable.attrs.get('units', 'No units')})", shrink=0.6, pad=0.02)
-    
+    cbar = fig.colorbar(contour, ax=ax, orientation='horizontal', label=f"{variable.name} ({variable.attrs.get('units', 'No units')})", shrink=0.9, pad=0.02)
+    cbar.ax.tick_params(axis='x', rotation=30)
+    cbar.ax.set_xlabel(cbar.ax.get_xlabel(), fontweight='bold')
     # Título del plot con el nombre de la variable y el tiempo formateado
     ax.set_title(f"{variable.name} - {pd.to_datetime(variable.Time.values).strftime('%d%b%Y %H:%M')}", fontsize = 20)
-
+    return ax
 
 def calculate_wind_speed_direction(u, v):
     """
@@ -105,8 +106,9 @@ def plot_wind(variable_u, variable_v, lats, lons, fig, subplot_idx, cbar_lims, c
     ax.add_feature(cfeature.STATES, linewidth=0.5)
     
     # Añadir barra de colores
-    plt.colorbar(contour, ax=ax, orientation='vertical', label="Wind Speed (m/s)",  shrink=0.6, pad=0.02)
-    
+    cbar = plt.colorbar(contour, ax=ax, orientation='horizontal', label="Wind Speed (m/s)",  shrink=0.9, pad=0.02)
+    cbar.ax.tick_params(axis='x', rotation=30)
+    cbar.ax.set_xlabel(cbar.ax.get_xlabel(), fontweight='bold')
     # Dibujar los vectores de viento (quiver)
     ax.quiver(to_np(lons[::10, ::10]), to_np(lats[::10, ::10]), u_np[::10, ::10]/np.sqrt(u_np[::10, ::10]**2 + v_np[::10, ::10]**2), v_np[::10, ::10]/np.sqrt(u_np[::10, ::10]**2 + v_np[::10, ::10]**2), transform=ccrs.PlateCarree(), scale=50, width=0.0025)
     
@@ -168,38 +170,41 @@ if __name__ == "__main__":
     ruta_actual = Path.cwd()
 
     # Crear la ruta al archivo de datos relativa a la ubicación actual
-    file_path = ruta_actual / 'data' / 'Models' / 'WRF' / 'PrelimSim_I' 
-
+    sim_name = 'PrelimSim_I'
+    domain_number = '2'
+    date_of_interest = '2014-07-16'
+    file_path = ruta_actual / 'data' / 'Models' / 'WRF' / sim_name
+    
     var_name = "T2"  # Ejemplo: temperatura a 2 metros
 
-    for file_name in sorted(filename for filename in os.listdir(file_path) if filename.startswith("wrfout_d02_2014-07-16")):
+    for file_name in sorted(filename for filename in os.listdir(file_path) if filename.startswith(f"wrfout_{sim_name}_d0{domain_number}_{date_of_interest}")):
         # Llamamos a la función para procesar el archivo WRF
         
-        temperature, lats, lons, times = process_wrf_file(f'{file_path}/{file_name}', 'TSK', time_idx=None)
+        temperature, lats, lons, times = process_wrf_file(f'{file_path}/{file_name}', 'TSK', time_idx=0)
         temperature_celsius = temperature-273
         temperature_celsius.attrs['units'] = 'ºC'
         # Crear una figura con varios subplots
-        fig = plt.figure(figsize=(17,9))
+        fig = plt.figure(figsize=(20,9))
 
         # Plotear la variable de temperatura
 
-        plot_wrf_variable(temperature_celsius, lats, lons, fig, subplot_idx=221, cbar_lims=(283-273, 313-273))
+        plot_wrf_variable(temperature_celsius, lats, lons, fig, subplot_idx=231, cbar_lims=(283-273, 313-273))
         
 
 
         # Extraer U10 y V10
-        u10, _, _, _ = process_wrf_file(f'{file_path}/{file_name}', "U10")
-        v10, _, _, _ = process_wrf_file(f'{file_path}/{file_name}', "V10")
+        u10, _, _, _ = process_wrf_file(f'{file_path}/{file_name}', "U10", time_idx=0)
+        v10, _, _, _ = process_wrf_file(f'{file_path}/{file_name}', "V10", time_idx=0)
 
         # Dibujar el gráfico de viento
-        plot_wind(u10, v10, lats, lons, fig, subplot_idx=222, cbar_lims=(0, 8))  # 1 fila, 2 columnas, posición 2
+        plot_wind(u10, v10, lats, lons, fig, subplot_idx=232, cbar_lims=(0, 8))  # 1 fila, 2 columnas, posición 2
 
-        variable2, lats, lons, times = process_wrf_file(f'{file_path}/{file_name}', 'PBLH', time_idx=None)
-        plot_wrf_variable(variable2, lats, lons, fig, subplot_idx=223, cbar_lims=(0, 1800), cmap = 'RdPu')
+        variable2, lats, lons, times = process_wrf_file(f'{file_path}/{file_name}', 'PBLH', time_idx=0)
+        plot_wrf_variable(variable2, lats, lons, fig, subplot_idx=233, cbar_lims=(0, 1800), cmap = 'RdPu')
 
-        variable_T2, lats, lons, times = process_wrf_file(f'{file_path}/{file_name}', 'T2', time_idx=None)
-        variable_PSFC, _, _, _ = process_wrf_file(f'{file_path}/{file_name}', 'PSFC', time_idx=None)
-        variable_td2, _, _, _ = process_wrf_file(f'{file_path}/{file_name}', 'td2', time_idx=None)
+        variable_T2, lats, lons, times = process_wrf_file(f'{file_path}/{file_name}', 'T2', time_idx=0)
+        variable_PSFC, _, _, _ = process_wrf_file(f'{file_path}/{file_name}', 'PSFC', time_idx=0)
+        variable_td2, _, _, _ = process_wrf_file(f'{file_path}/{file_name}', 'td2', time_idx=0)
 
         e_vapor = 6.112* np.exp(17.67*(variable_td2)/((variable_td2)+243.5))
 
@@ -209,7 +214,11 @@ if __name__ == "__main__":
         hum_esp.attrs['units'] = 'g/kg'
         # breakpoint()
 
-        plot_wrf_variable(hum_esp, lats, lons, fig, subplot_idx=224, cbar_lims=(7, 13), cmap = 'Greens')
+        plot_wrf_variable(hum_esp, lats, lons, fig, subplot_idx=234, cbar_lims=(7, 13), cmap = 'Greens')
+
+        variable2, lats, lons, times = process_wrf_file(f'{file_path}/{file_name}', 'SWDOWN', time_idx=0)
+
+        ax = plot_wrf_variable(variable2, lats, lons, fig, subplot_idx=235, cbar_lims=(0, 700), cmap = 'Greys_r')
 
     #     # Mostrar la figura completa
 
@@ -223,16 +232,17 @@ if __name__ == "__main__":
         legend.get_frame().set_alpha(1)
         # plt.tight_layout()
         plt.tight_layout()
+
         # Guardamos la figura en un archivo (si es necesario)
-        fig.savefig(Path.cwd() / 'figs' / 'maps' / '2014-07-16'/ 'WRF' / f'AllVars_subplot_{file_name[11:-3]}.png', bbox_inches='tight')
+        fig.savefig(Path.cwd() / 'figs' / 'maps' / '2014-07-16'/ 'WRF' / sim_name / f"AllVars_{sim_name}_subplot_{file_name.split('_')[4]}_{file_name.split('_')[5].split('.')[0]}.png", bbox_inches='tight')
         plt.close()
         #CREAR UN GIF DE TODAS LAS IMAGENES GENERADAS
         # Abrimos las imágenes y las convertimos a formato de PIL
         
-    path_to_figs = Path.cwd().joinpath('figs/maps/2014-07-16/WRF/')
+    path_to_figs = Path.cwd().joinpath(f'figs/maps/2014-07-16/WRF/{sim_name}/')
 
-    images = [Image.open(png) for png in sorted(list(path_to_figs.glob('AllVars_subplot_*.png')))]
+    images = [Image.open(png) for png in sorted(list(path_to_figs.glob(f'AllVars_{sim_name}_subplot_*.png')))]
     breakpoint()
     # Guardamos las imágenes en formato GIF
-    images[0].save(f'{path_to_figs}/AllVars_subplot_{file_name[11:-6]}.gif', save_all=True, append_images=images[1:], optimize=False, duration=1800, loop=0)
+    images[0].save(f"{path_to_figs}/AllVars_{sim_name}_subplot_{file_name.split('_')[4]}_{file_name.split('_')[5].split('.')[0]}.gif", save_all=True, append_images=images[1:], optimize=False, duration=1800, loop=0)
 

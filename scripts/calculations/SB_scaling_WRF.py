@@ -28,17 +28,23 @@ ruta_actual = Path.cwd()  # Esto te lleva a SB_SCALING-Netherlands
 # Agregar la ruta del directorio 'import' donde están los scripts de importación
 sys.path.append(str(ruta_actual / 'scripts' / 'calculations'))
 sys.path.append(str(ruta_actual / 'scripts' / 'import'))
-from processing_data import generate_KNMI_df_STNvsDATETIME, generate_WRF_df_STNvsDATETIME
+from processing_data import generate_WRF_df_STNvsDATETIME
 from import_wrfout_data import extract_point_data
 from netCDF4 import Dataset
 # Abre el archivo wrfout
-dir_files = '/home/poc/Documentos/Projects/SB_SCALING-Netherlands/data/Models/WRF/PrelimSim_I/'
+
 var_names_sup = ('HFX', 'TSK')
 var_names_air = ('U', 'V', 'T')
+
+sim_name = 'Sim_2'
+domain_number = '2'
+date_of_interest = '2014-07-16'
+
 # Obtener la lista de archivos WRF
-dir_wrf_files = [os.path.join(dir_files, f) for f in os.listdir(dir_files) if f.startswith('wrfout_d02_2014-07-16')]
+dir_files = f'{ruta_actual}/data/Models/WRF/{sim_name}/'
+dir_wrf_files = [os.path.join(dir_files, f) for f in os.listdir(dir_files) if f.startswith(f'wrfout_{sim_name}_d0{domain_number}_{date_of_interest}')]
 
-
+path_to_figs = Path.cwd().joinpath(f'figs/SB_scaling/{sim_name}')
 
 def detectar_racha_direccion_viento(df, columna_direccion='direccion_viento', min_duracion='1h', rango=(270, 310)):
     """
@@ -72,7 +78,31 @@ def detectar_racha_direccion_viento(df, columna_direccion='direccion_viento', mi
     else:
         return None  # O un valor predeterminado si no hay rachas
 
+def detectar_racha_direccion_viento(df, columna_direccion='direccion_viento', min_duracion='3h', rango=(270, 310)):
+    """
+    Detecta el tiempo de inicio de una racha de dirección de viento dentro del rango especificado,
+    que dure al menos el tiempo mínimo dado.
 
+    :param df: DataFrame con datos de dirección de viento y un índice de tiempo
+    :param columna_direccion: Nombre de la columna que contiene los datos de dirección de viento
+    :param min_duracion: Duración mínima de la racha en formato de pandas (por ejemplo, '3h')
+    :param rango: Tupla con el rango de dirección de viento a detectar (por ejemplo, (270, 310))
+    :return: El tiempo de inicio de la primera racha que cumple con la condición o None si no hay ninguna
+    """
+    # Filtrar los datos donde la dirección está dentro del rango
+    df_rango = df[(df[columna_direccion] >= rango[0]) & (df[columna_direccion] <= rango[1])]
+
+    # Asegúrate de trabajar con una copia real
+    df_rango = df_rango.copy()
+    df_rango['grupo'] = (df_rango.index.to_series().diff() > pd.Timedelta(hours=1)).cumsum()
+
+    # Evaluar cada grupo contiguo
+    for _, grupo in df_rango.groupby('grupo'):
+        # Verificar la duración del grupo
+        if (grupo.index[-1] - grupo.index[0]) >= pd.Timedelta(min_duracion):
+            return grupo.index[0]  # Retornar el tiempo de inicio del primer grupo válido
+
+    return None  # Retornar None si no se encuentra ninguna racha válida
 
 
 ncfile = Dataset(dir_wrf_files[0], mode='r')
@@ -100,14 +130,24 @@ alturas_loc_superficie = altura[:, punto_mas_cercano[1], punto_mas_cercano[0]]
 # Extraer todas las variables en el punto más cercano para todas las dimensiones de tiempo
 # Usamos 'isel' para seleccionar el punto (punto_mas_cercano) en las dimensiones 'south_north' y 'west_east'
 data_Cabauw_WRF = ds.isel(south_north=punto_mas_cercano[1], south_north_stag=punto_mas_cercano[1], west_east=punto_mas_cercano[0], west_east_stag=punto_mas_cercano[0])
+# Asegúrate de que 'XTIME' sea la coordenada temporal principal
+data_Cabauw_WRF = data_Cabauw_WRF.swap_dims({"Time": "XTIME"})
+data_Cabauw_WRF = data_Cabauw_WRF.sortby("XTIME")
+
+# Verifica si hay duplicados y elimínalos si existen
+if data_Cabauw_WRF["XTIME"].to_pandas().duplicated().any():
+    data_Cabauw_WRF = data_Cabauw_WRF.isel(XTIME=~data_Cabauw_WRF["XTIME"].to_pandas().duplicated())
+
+# Ahora realiza el resampleo
+data_Cabauw_WRF = data_Cabauw_WRF.resample(XTIME="1h").mean()#.isel(XTIME=slice(24, 48)) # ESTA ULTIMA LINEA LA PONGO PORQUE TOMA VALORES PAARA DOS DÍAS NO SE POR QUÉ
 
 
 ## LEo las variables en superficie
-data_T_sea, _ = generate_WRF_df_STNvsDATETIME('2', 'PrelimSim_I', '2014-07-16', 'TSK', STN = 320)
-data_T_Cabauw, _ = generate_WRF_df_STNvsDATETIME('2', 'PrelimSim_I', '2014-07-16', 'TSK', STN = 215)
-data_HFX_sea, _ = generate_WRF_df_STNvsDATETIME('2', 'PrelimSim_I', '2014-07-16', 'HFX', STN = 215)
-data_U10_land, _ = generate_WRF_df_STNvsDATETIME('2', 'PrelimSim_I', '2014-07-16', 'U10', STN = 215)
-data_V10_land, _ = generate_WRF_df_STNvsDATETIME('2', 'PrelimSim_I', '2014-07-16', 'V10', STN = 215)
+data_T_sea, _ = generate_WRF_df_STNvsDATETIME(domain_number, sim_name, date_of_interest, 'TSK', STN = 320)
+data_T_Cabauw, _ = generate_WRF_df_STNvsDATETIME(domain_number, sim_name, date_of_interest, 'TSK', STN = 215)
+data_HFX_sea, _ = generate_WRF_df_STNvsDATETIME(domain_number, sim_name, date_of_interest, 'HFX', STN = 215)
+data_U10_land, _ = generate_WRF_df_STNvsDATETIME(domain_number, sim_name, date_of_interest, 'U10', STN = 215)
+data_V10_land, _ = generate_WRF_df_STNvsDATETIME(domain_number, sim_name, date_of_interest, 'V10', STN = 215)
 
 ### Leo los valores de wdir para todos los tiempos:
 # Lista para almacenar los DataArrays de wdir
@@ -164,7 +204,7 @@ cp = 1004  # Calor específico del aire seco (J/kg·K)
 #Calculo delta_T entre los valores de superficie y mar:
 delta_T = data_T_Cabauw[215] - data_T_sea[320]
 delta_T.columns = ['delta_T']
-delta_T_resampled = delta_T#.resample('10min').ffill()  # Forward-fill to match 10-min intervals
+delta_T_resampled = delta_T#.resample('1h').interpolate()  # Forward-fill to match 10-min intervals
 delta_T_resampled.astype(float)
 delta_T_resampled = delta_T_resampled.to_frame(name='delta_T')
 #########
@@ -191,27 +231,29 @@ variables_bajo_200m = data_Cabauw_WRF.sel(bottom_top=idx_bajo_1200m)
 idx_1200m = np.abs(alturas_loc_superficie - 1200).argmin().item()
 idx_500m = np.abs(alturas_loc_superficie - 500).argmin().item()
 
+
 #############################
 ##### Calcular el environmental lapse rate (Gamma) y T_0
-Gamma = -(data_Cabauw_WRF['theta'].isel(bottom_top=idx_1200m) -
-          data_Cabauw_WRF['theta'].isel(bottom_top=idx_500m)) / \
-        (alturas_loc_superficie.isel(bottom_top=idx_1200m) - alturas_loc_superficie.isel(bottom_top=idx_500m))
+Gamma = -(data_Cabauw_WRF['theta'].isel(bottom_top=idx_1200m) - data_Cabauw_WRF['theta'].isel(bottom_top=idx_500m)) / (
+    alturas_loc_superficie.isel(bottom_top=idx_1200m) - alturas_loc_superficie.isel(bottom_top=idx_500m)
+)
+
 Gamma_df = pd.DataFrame(Gamma, index = data_T_sea.index)
 Gamma_df.columns = ['Theta_grad']
-Gamma_df_df_resampled = Gamma_df#.resample('10min').ffill()  # Forward-fill to match 10-min intervals
+Gamma_df_df_resampled = Gamma_df.resample('1h').interpolate()  # Forward-fill to match 10-min intervals
 Gamma_df_df_resampled.astype(float)
 
 
 T_0 = data_Cabauw_WRF.isel(bottom_top=range(idx_500m, idx_1200m + 1))['theta'].mean(dim='bottom_top').compute().values
 T_0_df = pd.DataFrame(T_0, index = data_T_sea.index)
 T_0_df.columns = ['T_0']
-T_0_df_resampled = T_0_df#.resample('10min').ffill()  # Forward-fill to match 10-min intervals
+T_0_df_resampled = T_0_df.resample('1h').interpolate()  # Forward-fill to match 10-min intervals
 T_0_df_resampled.astype(float)
 
 N_alltimes = np.sqrt(g*abs(Gamma)/T_0)
 N_alltimes_df = pd.DataFrame(N_alltimes, index = data_T_sea.index)
 N_alltimes_df.columns = ['N']
-N_alltimes_df_resampled = N_alltimes_df#.resample('10min').ffill()  # Forward-fill to match 10-min intervals
+N_alltimes_df_resampled = N_alltimes_df.resample('1h').interpolate()  # Forward-fill to match 10-min intervals
 N_alltimes_df_resampled.astype(float)
 #############################
 
@@ -221,9 +263,9 @@ N_alltimes_df_resampled.astype(float)
 # Convertir `data_Cabauw_WRF['HFX']` a un DataFrame de pandas para manipulación más sencilla
 df_HFX = data_Cabauw_WRF['HFX'].to_dataframe()
 
-df_HFX['XTIME'] = pd.to_datetime(df_HFX['XTIME'])
-df_HFX.set_index(['XTIME'], inplace=True)
-df_HFX = df_HFX.sort_index()
+# df_HFX['XTIME'] = pd.to_datetime(df_HFX.index)
+# df_HFX.set_index(['XTIME'], inplace=True)
+# df_HFX = df_HFX.sort_index()
 
 
 
@@ -232,7 +274,7 @@ idx_t_s = df_HFX.index.get_loc(t_s)
 
 # Definir `t_p` como el tiempo en el cual la dirección del viento (de otra fuente) está en el rango deseado durante 1h
 # Usar tu función `detectar_racha_direccion_viento`
-t_p = detectar_racha_direccion_viento(wdir_combined_df.xs(0, level='bottom_top'), columna_direccion='wspd_wdir', min_duracion='1h', rango=(210, 300))
+t_p = detectar_racha_direccion_viento(wdir_combined_df.xs(0, level='bottom_top'), columna_direccion='wspd_wdir', min_duracion='4h', rango=(245, 350))
 in_range = wdir_combined_df.xs(0, level='bottom_top')[
     (wdir_combined_df.xs(0, level='bottom_top')['wspd_wdir'] >= 240) &
     (wdir_combined_df.xs(0, level='bottom_top')['wspd_wdir'] <= 350)
@@ -263,11 +305,11 @@ for t_p_loop in t_p:
 
 # Crear un DataFrame con los resultados
 H_alltimes = pd.DataFrame({'H': resultados_H}, index=resultados_tiempo)
-H_alltimes_resampled = H_alltimes#.resample('10min').interpolate()
+H_alltimes_resampled = H_alltimes.resample('1h').interpolate()
 
 # Crear un rango de tiempo completo de 10 minutos para todo el día
-fecha_inicio = '2014-07-16 00:00:00'
-fecha_fin = '2014-07-16 23:00:00'
+fecha_inicio = f'{date_of_interest} 00:00:00'
+fecha_fin = f'{date_of_interest} 23:00:00'
 indice_completo = pd.date_range(start=fecha_inicio, end=fecha_fin, freq='1H')#, freq='10min')
 
 # Reindexar el DataFrame de resultados para el índice completo
@@ -320,7 +362,7 @@ for time, Z_sb in first_outside_height.items():
 U_sb_alltimes = U_sb_results.reindex(indice_completo).tz_localize('UTC')
 U_sb_alltimes.columns = ['u_sb']
 U_sb_alltimes = U_sb_alltimes.astype(float)
-U_sb_alltimes = U_sb_alltimes#.resample('10min').interpolate()
+U_sb_alltimes = U_sb_alltimes#.resample('1h').interpolate()
 
 ### Genero el df con todas las variables necesarias: delta_T, H, N, f, omega, g, T_0:
 parameters = pd.concat([delta_T_resampled, H_alltimes_resampled, N_alltimes_df_resampled], axis=1)
@@ -336,6 +378,8 @@ parameters['theta_grad'] = Gamma_df_df_resampled
 
 parameters['u_s'] = (parameters['g'] * parameters['delta_T'])/(parameters['T_0'] * parameters['N'])
 parameters['u_sb'] = U_sb_alltimes
+parameters = parameters.dropna()
+
 
 SB_scaling_data = parameters[(parameters.index > t_p[0].strftime("%Y-%m-%d %H:%M:%S")) & (parameters.index < t_p[-1].strftime("%Y-%m-%d %H:%M:%S"))]
 
@@ -380,41 +424,72 @@ a, b, c, d = popt
 # Calcular los valores ajustados de u_sb/u_s usando los coeficientes ajustados
 u_sb_u_s_ajustado = a * SB_scaling_data['Pi_1']**b * SB_scaling_data['Pi_2']**c * SB_scaling_data['Pi_4']**d
 
-# Crear el gráfico de dispersión
-plt.figure(figsize=(8, 6))
-plt.scatter(u_sb_u_s_ajustado, (SB_scaling_data['u_sb'] / SB_scaling_data['u_s']), color='black')
-# plt.plot([0, max(parameters['u_sb_u_s_ajustado'])], [0, max(parameters['u_sb_u_s_ajustado'])], color='gray', linestyle='--', label='y=x')
+###################### PLOT DE LA FIGURA ###########################
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
+
+norm = mcolors.Normalize(vmin=0, vmax=len(u_sb_u_s_ajustado) - 1)
+colormap = cm.get_cmap("copper")  # Mapa de colores marrón (cobre)
+
+# Crear los colores para cada punto
+colors = [colormap(norm(i)) for i in range(len(u_sb_u_s_ajustado))]
+
+# Crear la figura y el eje
+fig, ax = plt.subplots(figsize=(8, 6))
+
+# Gráfico de dispersión con colores
+scatter = ax.scatter(u_sb_u_s_ajustado,SB_scaling_data['u_sb'] / SB_scaling_data['u_s'],color=colors,edgecolor='black')
+
+# Línea x=y=1
+ax.plot([0, 2], [0, 2], color='gray', linestyle='--', linewidth=1.5)
+
+# Configuración de límites
+# ax.set_xlim(0, 1.2)
+# ax.set_ylim(0, 1.2)
 
 # Etiquetas y título
-plt.xlabel(f"${np.round(a, 3)} \\Pi_1^{{{np.round(b, 2)}}} \\Pi_2^{{{np.round(c, 2)}}} \\Pi_4^{{{np.round(d, 2)}}}$")
-plt.ylabel(r'$U_{sb}/U_s$')
-plt.title(r'SB scaling for u$_{SB}$/u$_s$')
-plt.legend()
-plt.grid(True)
-plt.savefig('/home/poc/Documentos/Projects/SB_SCALING-Netherlands/figs/SB_scaling/U_SB_SCALING_WRF_plot.png')
+ax.set_xlabel(f"${np.round(a, 3)} \\Pi_1^{{{np.round(b, 2)}}} \\Pi_2^{{{np.round(c, 2)}}} \\Pi_4^{{{np.round(d, 2)}}}$", fontsize=12)
+ax.set_ylabel(r'$U_{sb}/U_s$', fontsize=12)
+ax.set_title(r'SB scaling for $u_{SB}/u_s$ ('+f'{sim_name})', fontsize=14)
+
+# Barra de color asociada al gráfico de dispersión
+cbar = fig.colorbar(cm.ScalarMappable(norm=norm, cmap=colormap), ax=ax, orientation='vertical', label='Hour (UTC)')
+# Crear las etiquetas de tiempo (horas UTC)
+time_labels = u_sb_u_s_ajustado.index.strftime('%Hh')
+cbar.set_ticks(np.linspace(0, len(u_sb_u_s_ajustado) - 1, len(u_sb_u_s_ajustado)))
+cbar.set_ticklabels(time_labels)
+# Leyenda y rejilla
+
+ax.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
+
+# Guardar la figura
+fig.tight_layout()
+plt.savefig(f'{path_to_figs}/U_SB_SCALING_WRF_{sim_name}_d0{domain_number}_{date_of_interest}.png', dpi=600)
+
+#####################################################################
 
 breakpoint()
-# Crear un DataFrame con los datos de temperatura y el índice de tiempo
-df_temp = pd.DataFrame(TA_tower, index=fechas[indices_dia], columns=altura)
+# # Crear un DataFrame con los datos de temperatura y el índice de tiempo
+# df_temp = pd.DataFrame(TA_tower, index=fechas[indices_dia], columns=altura)
 
-# Crear la figura y los ejes para la gráfica
-plt.figure(figsize=(10, 6))
+# # Crear la figura y los ejes para la gráfica
+# plt.figure(figsize=(10, 6))
 
-# Graficar la temperatura para cada altura
-for altura in df_temp.columns:
-    plt.plot(df_temp.index, df_temp[altura], label=f'{int(altura)} m')
+# # Graficar la temperatura para cada altura
+# for altura in df_temp.columns:
+#     plt.plot(df_temp.index, df_temp[altura], label=f'{int(altura)} m')
 
-# Añadir etiquetas y leyenda
-plt.xlabel("Hour UTC")
-plt.ylabel("Air Temperature (TA; K)")
-plt.title("Temperature in Cabauw")
-plt.legend(title="Height (agl)", bbox_to_anchor=(1.05, 1), loc='upper left')
-plt.grid(True)
+# # Añadir etiquetas y leyenda
+# plt.xlabel("Hour UTC")
+# plt.ylabel("Air Temperature (TA; K)")
+# plt.title("Temperature in Cabauw")
+# plt.legend(title="Height (agl)", bbox_to_anchor=(1.05, 1), loc='upper left')
+# plt.grid(True)
 
-# Mostrar la gráfica
-plt.tight_layout()
-plt.savefig('/home/poc/Documentos/Projects/SB_SCALING-Netherlands/figs/SB_scaling/TA_Cabauw.png')
+# # Mostrar la gráfica
+# plt.tight_layout()
+# plt.savefig(f'{path_to_figs}/TA_Cabauw.png')
 
 
-breakpoint()
-breakpoint()
+# breakpoint()
+# breakpoint()
