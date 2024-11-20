@@ -11,6 +11,7 @@ from matplotlib import cm
 import os
 from PIL import Image
 import glob
+import xarray as xr
 
 # Obtener la ruta actual del proyecto (ruta raíz SB_SCALING-Netherlands)
 ruta_actual = Path.cwd()  # Esto te lleva a SB_SCALING-Netherlands
@@ -21,7 +22,7 @@ sys.path.append(str(ruta_actual / 'scripts' / 'import'))
 # Importar las funciones desde 'import_ECMWF_IFS_data.py'
 from import_wrfout_data import process_wrf_file
 
-def plot_wrf_variable(variable, lats, lons, fig, subplot_idx, cbar_lims, cmap = 'Reds'):
+def plot_wrf_variable(variable, lats, lons, fig, subplot_idx, cbar_lims, cmap = 'Reds', orientation = 'horizontal', shrink = 0.7):
     """
     Genera un gráfico de una variable WRF y lo añade a un subplot específico en la figura.
     
@@ -47,7 +48,7 @@ def plot_wrf_variable(variable, lats, lons, fig, subplot_idx, cbar_lims, cmap = 
     ax.add_feature(cfeature.STATES, linewidth=0.3)
     
     # Añadimos la barra de colores en el lateral (vertical)
-    cbar = fig.colorbar(contour, ax=ax, orientation='horizontal', label=f"{variable.name} ({variable.attrs.get('units', 'No units')})", shrink=0.9, pad=0.02)
+    cbar = fig.colorbar(contour, ax=ax, orientation= orientation, label=f"{variable.name} ({variable.attrs.get('units', 'No units')})", shrink=shrink, pad=0.002)
     cbar.ax.tick_params(axis='x', rotation=30)
     cbar.ax.set_xlabel(cbar.ax.get_xlabel(), fontweight='bold')
     # Título del plot con el nombre de la variable y el tiempo formateado
@@ -220,7 +221,32 @@ if __name__ == "__main__":
 
         ax = plot_wrf_variable(variable2, lats, lons, fig, subplot_idx=235, cbar_lims=(0, 700), cmap = 'Greys_r')
 
-    #     # Mostrar la figura completa
+        variable3, lats, lons, times = process_wrf_file(f'{file_path}/{file_name}', 'QCLOUD', time_idx=0)
+        #Ahora obtengo un array para las alturas para calcular el sumatorio de los valores por debajo del primer km
+        ds = xr.open_dataset(f'{file_path}/{file_name}')
+        # Calcular las alturas geopotenciales
+        g = 9.81  # Aceleración gravitacional (m/s²)
+        height = (ds["PH"] + ds["PHB"]) / g  # Altura total (PH + PHB) en metros
+
+        # Calcular alturas en el centro de las celdas (promedio entre niveles stag)
+        height_center = 0.5 * (height.isel(bottom_top_stag=slice(1, None)) + height.isel(bottom_top_stag=slice(None, -1)))
+        height_center = height_center.rename({"bottom_top_stag": "bottom_top"})  # Coincidir con 'bottom_top'
+
+
+        # Seleccionar una instancia de tiempo si es necesario
+        height_center = height_center.isel(Time=0)
+
+        # Crear una máscara para niveles por debajo de 1 km
+        mask_below_1km = height_center < 1000  # Máscara booleana
+
+        variable3_below_1km = variable3.where(mask_below_1km, drop=True)
+
+        # Calcular el sumatorio en la dimensión vertical (bottom_top)
+        sum_below_1km = variable3_below_1km.sum(dim="bottom_top")*1000
+        sum_below_1km.attrs['units'] = 'g/kg'
+        sum_below_1km.name = "QCLOUD (below 1000 km)"
+        ax = plot_wrf_variable(sum_below_1km, lats, lons, fig, subplot_idx=236, cbar_lims = (0.01,1), cmap = 'Greys')
+        # Mostrar la figura completa
 
         ax1,ax2 = fig.axes[0], fig.axes[2]  # Acceder al primer eje creado
         ax2.scatter(4.437, 52.141, marker='o', s=100, color='green', transform=ccrs.PlateCarree(), label = 'STN 215: Voorschoten')

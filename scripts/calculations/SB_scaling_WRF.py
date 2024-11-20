@@ -45,6 +45,7 @@ dir_files = f'{ruta_actual}/data/Models/WRF/{sim_name}/'
 dir_wrf_files = [os.path.join(dir_files, f) for f in os.listdir(dir_files) if f.startswith(f'wrfout_{sim_name}_d0{domain_number}_{date_of_interest}')]
 
 path_to_figs = Path.cwd().joinpath(f'figs/SB_scaling/{sim_name}')
+path_to_table = Path.cwd().joinpath(f'figs/SB_scaling')
 
 def detectar_racha_direccion_viento(df, columna_direccion='direccion_viento', min_duracion='1h', rango=(270, 310)):
     """
@@ -104,12 +105,40 @@ def detectar_racha_direccion_viento(df, columna_direccion='direccion_viento', mi
 
     return None  # Retornar None si no se encuentra ninguna racha válida
 
+def generate_table_parameters_SB_scaling(file_path, file_name, simulation_name, a, b, c, d):
+    """
+    Actualiza o añade una fila correspondiente a una simulación con sus parámetros en una tabla CSV.
+    Si no existe ninguna tabla en el directorio, se crea desde cero.
+
+    Args:
+        file_path (str): Ruta del archivo CSV.
+        simulation_name (str): Nombre de la simulación (e.g., "Sim_1").
+        a, b, c, d (float): Parámetros calculados para la simulación.
+
+    Returns:
+        pd.DataFrame: Tabla actualizada.
+    """
+    # Verifica si hay tablas en el directorio
+    if os.path.exists(f'{file_path}/{file_name}.csv'):
+        # Leer la tabla existente
+        table = pd.read_csv(f'{file_path}/{file_name}.csv', index_col=0)
+    else:
+        # Crear una nueva tabla vacía con columnas especificadas
+        print(f"No se encontró ninguna tabla en el directorio. Creando {file_name} desde cero.")
+        table = pd.DataFrame(columns=["Simulation", "a", "b", "c", "d"]).set_index("Simulation")
+
+    # Actualizar o añadir la fila correspondiente a la simulación
+    table.loc[simulation_name] = [np.round(a, 2), np.round(b, 2), np.round(c, 2), np.round(d, 2)]
+
+    # Guardar la tabla actualizada en el archivo
+    table.to_csv(f'{file_path}/{file_name}.csv')
+
+    return table
 
 ncfile = Dataset(dir_wrf_files[0], mode='r')
 
 # Lista todas las variables disponibles en el archivo
 variables = ncfile.variables.keys()
-
 
 # Leer todos los archivos y concatenarlos a lo largo de la dimensión 'Time'
 ds = xr.open_mfdataset(dir_wrf_files, concat_dim='Time', combine='nested', parallel=False)
@@ -138,8 +167,14 @@ data_Cabauw_WRF = data_Cabauw_WRF.sortby("XTIME")
 if data_Cabauw_WRF["XTIME"].to_pandas().duplicated().any():
     data_Cabauw_WRF = data_Cabauw_WRF.isel(XTIME=~data_Cabauw_WRF["XTIME"].to_pandas().duplicated())
 
-# Ahora realiza el resampleo
-data_Cabauw_WRF = data_Cabauw_WRF.resample(XTIME="1h").mean()#.isel(XTIME=slice(24, 48)) # ESTA ULTIMA LINEA LA PONGO PORQUE TOMA VALORES PAARA DOS DÍAS NO SE POR QUÉ
+# Definir la fecha permitida
+allowed_date_ns = np.datetime64('2014-07-16', 'ns')
+
+# Seleccionar XTIME sin modificar el original
+data_Cabauw_WRF_day_of_interest = data_Cabauw_WRF.sel(
+    XTIME=data_Cabauw_WRF.XTIME.astype('datetime64[ns]').astype('datetime64[D]') == allowed_date_ns
+)
+data_Cabauw_WRF_I = data_Cabauw_WRF_day_of_interest.resample(XTIME="1h").mean()
 
 
 ## LEo las variables en superficie
@@ -213,18 +248,18 @@ delta_T_resampled = delta_T_resampled.to_frame(name='delta_T')
 #########
 ### Calclulo la temperatura potencial 'theta' y lo añado como variable del xarray
 # Calcular la presión total
-P_total = data_Cabauw_WRF['P'] + data_Cabauw_WRF['PB']
+P_total = data_Cabauw_WRF_I['P'] + data_Cabauw_WRF_I['PB']
 
 # Calcular la temperatura potencial
-temperatura_potencial = (data_Cabauw_WRF['T'] + 300) * (P0 / P_total) ** (Rd / cp)
+temperatura_potencial = (data_Cabauw_WRF_I['T'] + 300) * (P0 / P_total) ** (Rd / cp)
 
-data_Cabauw_WRF['theta'] = temperatura_potencial
+data_Cabauw_WRF_I['theta'] = temperatura_potencial
 #########
 
 
 # Seleccionar los índices de los niveles donde las alturas están por debajo de 200 metros
 idx_bajo_1200m =(alturas_loc_superficie < 1200).values.nonzero()[0]
-variables_bajo_200m = data_Cabauw_WRF.sel(bottom_top=idx_bajo_1200m)
+variables_bajo_200m = data_Cabauw_WRF_I.sel(bottom_top=idx_bajo_1200m)
 
 # Seleccionar los índices de los niveles donde las alturas están por debajo de 1200 metros
 # Encontrar los índices más cercanos a 1200 m y 500 m
@@ -234,7 +269,7 @@ idx_500m = np.abs(alturas_loc_superficie - 500).argmin().item()
 
 #############################
 ##### Calcular el environmental lapse rate (Gamma) y T_0
-Gamma = -(data_Cabauw_WRF['theta'].isel(bottom_top=idx_1200m) - data_Cabauw_WRF['theta'].isel(bottom_top=idx_500m)) / (
+Gamma = -(data_Cabauw_WRF_I['theta'].isel(bottom_top=idx_1200m) - data_Cabauw_WRF_I['theta'].isel(bottom_top=idx_500m)) / (
     alturas_loc_superficie.isel(bottom_top=idx_1200m) - alturas_loc_superficie.isel(bottom_top=idx_500m)
 )
 
@@ -244,7 +279,7 @@ Gamma_df_df_resampled = Gamma_df.resample('1h').interpolate()  # Forward-fill to
 Gamma_df_df_resampled.astype(float)
 
 
-T_0 = data_Cabauw_WRF.isel(bottom_top=range(idx_500m, idx_1200m + 1))['theta'].mean(dim='bottom_top').compute().values
+T_0 = data_Cabauw_WRF_I.isel(bottom_top=range(idx_500m, idx_1200m + 1))['theta'].mean(dim='bottom_top').compute().values
 T_0_df = pd.DataFrame(T_0, index = data_T_sea.index)
 T_0_df.columns = ['T_0']
 T_0_df_resampled = T_0_df.resample('1h').interpolate()  # Forward-fill to match 10-min intervals
@@ -260,8 +295,8 @@ N_alltimes_df_resampled.astype(float)
 ############################# 
 ##### CALCULO DE H (INTEGRAL DEL FLUJO DE CALOR SENSIBLE EN SUPERFICIE DESDE EL INICIO DEL FLUJO POSITIVO HASTA LA LLEGADA DE LA BRISA)
 
-# Convertir `data_Cabauw_WRF['HFX']` a un DataFrame de pandas para manipulación más sencilla
-df_HFX = data_Cabauw_WRF['HFX'].to_dataframe()
+# Convertir `data_Cabauw_WRF_I['HFX']` a un DataFrame de pandas para manipulación más sencilla
+df_HFX = data_Cabauw_WRF_I['HFX'].to_dataframe()
 
 # df_HFX['XTIME'] = pd.to_datetime(df_HFX.index)
 # df_HFX.set_index(['XTIME'], inplace=True)
@@ -310,7 +345,7 @@ H_alltimes_resampled = H_alltimes.resample('1h').interpolate()
 # Crear un rango de tiempo completo de 10 minutos para todo el día
 fecha_inicio = f'{date_of_interest} 00:00:00'
 fecha_fin = f'{date_of_interest} 23:00:00'
-indice_completo = pd.date_range(start=fecha_inicio, end=fecha_fin, freq='1H')#, freq='10min')
+indice_completo = pd.date_range(start=fecha_inicio, end=fecha_fin, freq='1h')#, freq='10min')
 
 # Reindexar el DataFrame de resultados para el índice completo
 H_alltimes_resampled = H_alltimes_resampled.reindex(indice_completo).tz_localize('UTC')
@@ -404,8 +439,9 @@ ydata = (SB_scaling_data['u_sb'] / SB_scaling_data['u_s']).values
 def modelo_u_sb_u_s(Pi_1, Pi_2, Pi_4, a, b, c, d):
     return a * Pi_1**b * Pi_2**c * Pi_4**d
 
+bounds_lower = [0, -0.55, -2.3, 0.45]  # Ligeramente restringidos
+bounds_upper = [10, -0.45, -2.2, 0.55]  # Ligeramente restringidos
 
-breakpoint()
 # Realizar el ajuste de curva no lineal
 # Inicializamos los valores de [a, b, c, d] en [1, -0.5, -1, 0.5] como ejemplo
 # Usamos lambda para pasar Pi_1, Pi_2, Pi_4 como argumentos individuales
@@ -413,11 +449,12 @@ popt, pcov = curve_fit(lambda P, a, b, c, d: modelo_u_sb_u_s(Pi_1, Pi_2, Pi_4, a
                        xdata=np.zeros_like(Pi_1),  # xdata es solo un marcador, no se usa realmente
                        ydata=ydata, 
                        p0=[0.85, -0.5, -9/4, 0.5],
-                       bounds = ([0,-4,-4,-4], [10,4,4,4]), maxfev=10000, ftol=1e-2, xtol=1e-2, gtol=1e-2)
+                       bounds = (bounds_lower, bounds_upper), maxfev=10000, ftol=1e-2, xtol=1e-2, gtol=1e-2)
 # Extraer los coeficientes ajustados
 a, b, c, d = popt
 
-
+# Actualizar o añadir los resultados de la simulación
+updated_table = generate_table_parameters_SB_scaling(path_to_table, 'SB_scaling_parameters.csv', sim_name, a, b, c, d)
 
 
 

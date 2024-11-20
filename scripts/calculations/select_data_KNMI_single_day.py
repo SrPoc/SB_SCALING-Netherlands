@@ -32,7 +32,7 @@ ruta_coords_KNMI_land = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_land.csv'
 ruta_coords_KNMI_NorthSea = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_NorthSea.csv'
 
 compute_data = False # si compute_data == True calcula los datos, si no, los importa
-avg_zones = True
+avg_zones = False
 ### PARÁMETROS:
 sim_name = 'Sim_3'
 sim_names = ('Sim_1', 'Sim_2', 'Sim_3', 'Sim_4')
@@ -120,13 +120,14 @@ def apply_colored_styles(df):
     ax.axis('off')
 
     # Aplicar colores de gradiente en cada métrica
-    norm_rmse = plt.Normalize(0, df[f'RMSE ({str(var_units)})'].max())
+    norm_rmse = plt.Normalize(0, 3.5)#df[f'RMSE ({str(var_units)})'].max())
 
     # Usar TwoSlopeNorm para centrar el color verde en 0 en la columna Bias, pero con el mismo rango de Bias
-    max_bias = max(abs(df[f'Bias ({str(var_units)})'].min()), abs(df[f'Bias ({str(var_units)})'].max()))
+    # max_bias = max(abs(df[f'Bias ({str(var_units)})'].min()), abs(df[f'Bias ({str(var_units)})'].max()))
+    max_bias = 2.2
     norm_bias = mcolors.TwoSlopeNorm(vmin=-max_bias, vcenter=0, vmax=max_bias)
 
-    norm_mae = plt.Normalize(0, df[f'MAE ({str(var_units)})'].max())
+    norm_mae = plt.Normalize(0, 3.5)#df[f'MAE ({str(var_units)})'].max())
     norm_r = plt.Normalize(-1, 1)
 
     # Crear la tabla en matplotlib
@@ -427,11 +428,7 @@ for sim_name in sim_names:
 
         # Aplicar los estilos y guardar la imagen
         apply_colored_styles(estadisticos)
-breakpoint()
 
-
-
-breakpoint()
 
 sea_station_code = 320
 land_station_code = 215
