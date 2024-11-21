@@ -37,7 +37,7 @@ stn_1 = 203
 stn_2 = 348
 
 os.makedirs(f'{ruta_actual}/figs/transects/{sim_name}/{date_str_import}', exist_ok=True)
-path_savefig = f'{ruta_actual}/figs/transects/{sim_name}/{date_str_import}'
+path_savefig = f'{ruta_actual}/figs/transects/{date_str_import}/{sim_name}'
 
 ## LECTURA DE DATOS
 
@@ -45,16 +45,16 @@ path_savefig = f'{ruta_actual}/figs/transects/{sim_name}/{date_str_import}'
 file_path_KNMI_land = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_land.csv'
 file_path_KNMI_NorthSea = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_NorthSea.csv'
 
-coords_KNMI_land = pd.read_csv(file_path_KNMI_land, sep=';', header=0, usecols=[0, 1, 2, 4])
+coords_KNMI_land = pd.read_csv(file_path_KNMI_land, sep=',', header=0, usecols=['STN', 'LON(east)', 'LAT(north)', 'ALT(m)', 'NAME', 'LOC'])
 coords_KNMI_land.set_index('STN', inplace=True)
-coords_KNMI_NorthSea = pd.read_csv(file_path_KNMI_NorthSea, sep=';', header=0)
+coords_KNMI_NorthSea = pd.read_csv(file_path_KNMI_NorthSea, sep=',', header=0, usecols=['STN', 'LON(east)', 'LAT(north)', 'ALT(m)', 'NAME', 'LOC'])
 coords_KNMI_NorthSea.set_index('STN', inplace=True)
 
 coords_KNMI_land_and_sea = pd.concat([coords_KNMI_land, coords_KNMI_NorthSea])
 
 # Crear la ruta al archivo de datos relativa a la ubicación actual
 file_path_wrfout = ruta_actual / 'data' / 'Models' / 'WRF' / sim_name
-filenames = sorted(filename for filename in os.listdir(file_path_wrfout) if filename.startswith(f"wrfout_d0{domain_n}_{date_str_import}"))
+filenames = sorted(filename for filename in os.listdir(file_path_wrfout) if filename.startswith(f"wrfout_{sim_name}_d0{domain_n}_{date_str_import}"))
 
 
 
@@ -63,13 +63,13 @@ for filename in filenames:
     ds = Dataset(f'{file_path_wrfout}/{filename}')
 
     # Extrae las variables necesarias desde el archivo WRF
-    p = getvar(ds, "pressure")  # Altura
-    q = getvar(ds, "QVAPOR")  # Humedad específica
-    temp = getvar(ds, "tc")#, units="degC")  # Temperatura en grados Celsius
-    terrain = getvar(ds, "HGT")
-    u = getvar(ds, "ua", units="m/s")  # Componente U del viento (m/s)
-    v = getvar(ds, "va", units="m/s")  # Componente V del viento (m/s)
-    w = getvar(ds, "wa", units="m/s")  # Componente V del viento (m/s)
+    p = getvar(ds, "pressure", timeidx = 0)  # Altura
+    q = getvar(ds, "QVAPOR", timeidx = 0)  # Humedad específica
+    temp = getvar(ds, "tc", timeidx = 0)#, units="degC")  # Temperatura en grados Celsius
+    terrain = getvar(ds, "HGT", timeidx = 0)
+    u = getvar(ds, "ua", units="m/s", timeidx = 0)  # Componente U del viento (m/s)
+    v = getvar(ds, "va", units="m/s", timeidx = 0)  # Componente V del viento (m/s)
+    w = getvar(ds, "wa", units="m/s", timeidx = 0)  # Componente V del viento (m/s)
 
     # Define los puntos de inicio y fin del transecto
     start_point = CoordPair(lat=coords_KNMI_land_and_sea.loc[stn_1]['LAT(north)'], 
@@ -168,18 +168,18 @@ for filename in filenames:
     ax.set_ylabel("Pressure (hPa)", fontsize=15)
 
     # Título del plot
-    plt.title(f"Transect from STN {str(stn_1)} ({coords_KNMI_land_and_sea.loc[stn_1]['LAT(north)']},{coords_KNMI_land_and_sea.loc[stn_1]['LON(east)']}) to {str(stn_2)} ({coords_KNMI_land_and_sea.loc[stn_2]['LAT(north)']},{coords_KNMI_land_and_sea.loc[stn_2]['LON(east)']}) {filename.split('_')[2]} {filename.split('_')[3].split('.')[0]} UTC", 
+    plt.title(f"Transect from STN {str(stn_1)} ({coords_KNMI_land_and_sea.loc[stn_1]['LAT(north)']},{coords_KNMI_land_and_sea.loc[stn_1]['LON(east)']}) to {str(stn_2)} ({coords_KNMI_land_and_sea.loc[stn_2]['LAT(north)']},{coords_KNMI_land_and_sea.loc[stn_2]['LON(east)']}) {filename.split('_')[4]} {filename.split('_')[5].split('.')[0]} UTC", 
               fontsize =18,
               pad=20)
     # plt.title(f"Vertical transect;  {filename.split('_')[2]} {filename.split('_')[3].split('.')[0]} UTC")
 
     # Guardar la figura
-    plt.savefig(f"{path_savefig}/Q_T_{filename.split('_')[2]}_{filename.split('_')[3].split('.')[0]}.png")
+    plt.savefig(f"{path_savefig}/Q_T_transect_{filename.split('_')[4]}_{filename.split('_')[5].split('.')[0]}.png")
     plt.close()
 path_savefig = Path(path_savefig)
 images = [Image.open(png) for png in sorted(list(path_savefig.glob("*.png")))]
 
 # Guardamos las imágenes en formato GIF
-images[0].save(f'{path_savefig}/Q_T_{filename.split("_")[2]}.gif', save_all=True, append_images=images[1:], optimize=False, duration=1200, loop=0)
+images[0].save(f'{path_savefig}/Q_T_transect_{filename.split("_")[4]}.gif', save_all=True, append_images=images[1:], optimize=False, duration=1200, loop=0)
 
 breakpoint()

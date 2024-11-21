@@ -32,7 +32,7 @@ ruta_coords_KNMI_land = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_land.csv'
 ruta_coords_KNMI_NorthSea = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_NorthSea.csv'
 
 compute_data = False # si compute_data == True calcula los datos, si no, los importa
-avg_zones = False
+avg_zones = True
 ### PARÁMETROS:
 sim_name = 'Sim_3'
 sim_names = ('Sim_1', 'Sim_2', 'Sim_3', 'Sim_4')
@@ -105,7 +105,7 @@ def calcular_estadisticos(df_modelo, df_obs, str_units):
 
     return estadisticos
 
-def apply_colored_styles(df):
+def apply_colored_styles(df, var_units):
     # Normalizar cada columna de métricas y aplicar color
     fig, ax = plt.subplots()  # Ajusta el tamaño según sea necesario
     # Añadir el título a la tabla
@@ -119,15 +119,28 @@ def apply_colored_styles(df):
     # Ocultar los ejes
     ax.axis('off')
 
+    if var_units == 'ºC':
+        norm_rmse = plt.Normalize(0, 3.5)#df[f'RMSE ({str(var_units)})'].max())
+        max_bias = 2.2
+        norm_mae = plt.Normalize(0, 3.5)#df[f'MAE ({str(var_units)})'].max())
+    elif var_units == 'm/s':
+        norm_rmse = plt.Normalize(0, 2)#df[f'RMSE ({str(var_units)})'].max())
+        max_bias = 1.5
+        norm_mae = plt.Normalize(0, 2)#df[f'MAE ({str(var_units)})'].max())
+    elif var_units == 'g/kg':
+        norm_rmse = plt.Normalize(0, 1.4)#df[f'RMSE ({str(var_units)})'].max())
+        max_bias = 1.2
+        norm_mae = plt.Normalize(0, 1.2)#df[f'MAE ({str(var_units)})'].max())
+
     # Aplicar colores de gradiente en cada métrica
-    norm_rmse = plt.Normalize(0, 3.5)#df[f'RMSE ({str(var_units)})'].max())
+    
 
     # Usar TwoSlopeNorm para centrar el color verde en 0 en la columna Bias, pero con el mismo rango de Bias
     # max_bias = max(abs(df[f'Bias ({str(var_units)})'].min()), abs(df[f'Bias ({str(var_units)})'].max()))
-    max_bias = 2.2
+
     norm_bias = mcolors.TwoSlopeNorm(vmin=-max_bias, vcenter=0, vmax=max_bias)
 
-    norm_mae = plt.Normalize(0, 3.5)#df[f'MAE ({str(var_units)})'].max())
+
     norm_r = plt.Normalize(-1, 1)
 
     # Crear la tabla en matplotlib
@@ -427,7 +440,7 @@ for sim_name in sim_names:
         # Define el rango de colores para cada métrica
 
         # Aplicar los estilos y guardar la imagen
-        apply_colored_styles(estadisticos)
+        apply_colored_styles(estadisticos, var_units)
 
 
 sea_station_code = 320
