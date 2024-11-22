@@ -370,9 +370,9 @@ df_Tsup = pd.DataFrame(data={"TS00": Tsup_data}, index=python_dates_surf_temp)
 df_WD_data_date = df_Tsup.loc['2014-07-16']
 df_WD_data_resampled = df_WD_data_date.resample('10min').interpolate()
 df_WD_data_resampled.index = df_WD_data_resampled.index.tz_localize('UTC')
-df_resultado_KNMI_sea, aux = generate_KNMI_df_STNvsDATETIME('2014-07-16', 'TZ',STN=320)
+df_resultado_KNMI_sea_skin, aux = generate_KNMI_df_STNvsDATETIME('2014-07-16', 'TZ',STN=320)
 df_resultado_KNMI_sea, aux = generate_KNMI_df_STNvsDATETIME('2014-07-16', 'T',STN=320)
-df_resultado_KNMI_sea, aux = generate_KNMI_df_STNvsDATETIME('2014-07-16', 'T',STN=215)
+df_resultado_KNMI_land, aux = generate_KNMI_df_STNvsDATETIME('2014-07-16', 'T',STN=215)
 breakpoint()
 indice_completo = pd.date_range(start="2014-07-16 00:00:00", end="2014-07-16 23:50:00", freq="10min", tz="UTC")
 delta_T = df_WD_data_resampled['TS00'] - df_resultado_KNMI_sea[320].resample('10min').nearest().reindex(indice_completo, method='nearest')
@@ -416,6 +416,10 @@ def modelo_u_sb_u_s(Pi_1, Pi_2, Pi_4, a, b, c, d):
 
 
 breakpoint()
+
+bounds_lower = [0, -0.55, -2.3, 0.45]  # Ligeramente restringidos
+bounds_upper = [10, -0.45, -2.2, 0.55]  # Ligeramente restringidos
+
 # Realizar el ajuste de curva no lineal
 # Inicializamos los valores de [a, b, c, d] en [1, -0.5, -1, 0.5] como ejemplo
 # Usamos lambda para pasar Pi_1, Pi_2, Pi_4 como argumentos individuales
@@ -423,10 +427,12 @@ popt, pcov = curve_fit(lambda P, a, b, c, d: modelo_u_sb_u_s(Pi_1, Pi_2, Pi_4, a
                        xdata=np.zeros_like(Pi_1),  # xdata es solo un marcador, no se usa realmente
                        ydata=ydata, 
                        p0=[0.85, -0.5, -9/4, 0.5],
-                       bounds = ([0,-4,-4,-4], [4,4,4,4]))
+                       bounds = (bounds_lower, bounds_upper), maxfev=10000, ftol=1e-2, xtol=1e-2, gtol=1e-2)
+
+
 # Extraer los coeficientes ajustados
 a, b, c, d = popt
-
+breakpoint()
 
 
 

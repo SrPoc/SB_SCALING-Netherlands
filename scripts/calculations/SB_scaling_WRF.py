@@ -425,7 +425,7 @@ SB_scaling_data[['g', 'delta_T', 'T_0', 'N', 'H', 'f', 'omega']] = SB_scaling_da
 SB_scaling_data['Pi_1'] = (SB_scaling_data['g'] * SB_scaling_data['delta_T']**2) / (SB_scaling_data['T_0'] * SB_scaling_data['N'] * SB_scaling_data['H'])
 SB_scaling_data['Pi_2'] = SB_scaling_data['f'] / SB_scaling_data['omega']
 SB_scaling_data['Pi_4'] = SB_scaling_data['N'] / SB_scaling_data['omega']
-
+breakpoint()
 
 Pi_1 = SB_scaling_data['Pi_1'].values
 Pi_2 = SB_scaling_data['Pi_2'].values
