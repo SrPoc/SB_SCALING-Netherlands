@@ -67,7 +67,7 @@ ruta_coords_KNMI_NorthSea = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_NorthSea
 
 
 # TRIGGERS
-trigger_plot_all_stats_in_table = True
+trigger_plot_all_stats_in_table = False
 avg_zones = True
 if avg_zones == True:
     str_avg_zones = '_avg_zones'
@@ -90,18 +90,22 @@ var_name_WRF = var_name
 if var_name == 'T':
     var_name_KNMI = 'T'  # Temperatura en 0.1 ºC
     var_units = 'ºC'
+    var_name_plot = '2m Temperature'
     figsizee=(12, 12)
 elif var_name == 'WS':
     var_name_KNMI = 'FF'  # Velocidad del viento
     var_units = 'm/s'
+    var_name_plot = 'Wind Speed'
     figsizee=(12, 16)
 elif var_name == 'Q':  # Humedad específica
     var_name_KNMI = 'U'  # Se utilizará para calcular la humedad específica
     var_units = 'g/kg'
     figsizee=(12, 12)
+    var_name_plot = 'Specific humidity'
 elif var_name == 'WD':
     var_name_KNMI = 'DD'  # Se utilizará para calcular la humedad específica
     var_units = 'Where the wind comes from'
+    var_name_plot = 'Wind Direction'
     figsizee=(12, 12)
 else:
     raise ValueError("La variable elegida no es válida. Elige entre 'T', 'WS', 'WD', o 'q'.")
@@ -203,7 +207,7 @@ def apply_colored_table_2(df, stat_name, str_title = None, var_units=None, fig=N
         fig, ax = plt.subplots(figsize=(8, 6))
 
     #Definir el colormap personalizado basado en RdYlGn_r <-- SOLO PARA BIAS
-    if(var_units == 'ºC') and (stat_name == f'Bias ({var_units})'):
+    if (stat_name == f'Bias ({var_units})'):
         # Definir el colormap personalizado para BIAS
         cmap_custom = LinearSegmentedColormap.from_list(
             "BlueWhiteRed", ["blue", "white", "red"], N=256
@@ -253,7 +257,7 @@ def apply_colored_table_2(df, stat_name, str_title = None, var_units=None, fig=N
     else:
         raise ValueError(f"Variable units '{var_units}' are not recognized.")
 
-
+    breakpoint()
     # Crear la tabla en matplotlib
     table = ax.table(cellText=df.values, rowLabels=df.index, colLabels=df.columns,
                      cellLoc='center', loc='center')
@@ -268,7 +272,7 @@ def apply_colored_table_2(df, stat_name, str_title = None, var_units=None, fig=N
 
     # Colorear las celdas basadas en el valor normalizado
     for i in range(len(df.index)):
-        for j in range(len(df.columns)):
+        for j in range(len(df.columns[:-1])): #en la ultima no añado color porque corresponde al valor absoluto medio
             value = df.iloc[i, j]
             if stat_name.split(' ')[0] == 'Bias':
                 color = cmap_custom(norm_stat(value))
@@ -281,7 +285,7 @@ def apply_colored_table_2(df, stat_name, str_title = None, var_units=None, fig=N
     table.set_fontsize(10)
     table.scale(1.2, 1.2)  # Escalar para un tamaño adecuado
 
-    ax.set_title(str_title, weight='bold',  fontsize=10)
+    ax.set_title(str_title, weight='bold',  fontsize=10, pad=5)
 
     # Guardar la tabla como imagen si se proporciona una ruta
     if save_path is not None:
@@ -329,7 +333,6 @@ if trigger_plot_all_stats_in_table == True:
             cmap_custom = LinearSegmentedColormap.from_list("CustomRdYlGnRed", colors, N=256)
 
             # Define el rango de colores para cada métrica
-
             # Aplicar los estilos y guardar la imagen
             apply_colored_styles(estadisticos, var_units, save_path = f"{ruta_actual}/misc/WRF_validation_tables/{sim_name}/scores_{var_name}_{sim_name}_{date_of_interest}_{period_computation}_allstat_colors{str_avg_zones}.png")
 
@@ -339,9 +342,15 @@ if trigger_plot_fig_completa == True:
     i = 1
     for estadistico in ['RMSE', 'Bias', 'MAE']:#, 'MAE', 'Pearson Coeff']:
         
-        fig.suptitle(f"Scores for {var_name}", fontweight="bold")
+        fig.suptitle(f"{var_name_plot}", fontweight="bold", fontsize = 20)
+          # Move subplots down to create space for suptitle
 
+        # Add titles for each column using fig.text()
         
+        fig.text(0.22, 0.9, f"pre-breeze period", ha='center', fontsize=16, fontweight="bold")
+        fig.text(0.22, 0.864, f"(08:00 - 11:00 UTC)", ha='center', fontsize=12)
+        fig.text(0.75, 0.9, "breeze period", ha='center', fontsize=16, fontweight="bold")
+        fig.text(0.75, 0.864, "(11:00 - 19:00 UTC)", ha='center', fontsize=12)
 
         for period_computation in ['pre-breeze', 'breeze']:
             if period_computation == 'breeze':
@@ -369,12 +378,17 @@ if trigger_plot_fig_completa == True:
                 for i, df in enumerate(estadistico_all_sims)
             }
             estadistico_para_figura_final = pd.DataFrame(estadistico_para_figura, index=['sea', 'coast', 'center'])
+            estadistico_para_figura_final.columns = ['YSU', 'MYJ', 'MYNN', 'BouLac']
+            estadistico_para_figura_final[f'Avg. Obs ({var_name})'] = pd.Series(
+                                                            estadisticos[f'Avg. Obs ({var_name})'][:3].values,  # Tomar los valores de los tres primeros
+                                                            index=estadistico_para_figura_final.index  # Usar el mismo índice del DataFrame destino
+            )
 
             ax = fig.add_subplot(3, 2, i)
-            str_title = f"{estadistico} for {period_computation} period ({datetime.strptime(timestamps_init_fin[0], '%Y-%m-%d %H:%M:%S').strftime('%H:%M').lower()} - {datetime.strptime(timestamps_init_fin[1], '%Y-%m-%d %H:%M:%S').strftime('%H:%M').lower()})"
+            str_title = f"{estadistico}"
 
             apply_colored_table_2(estadistico_para_figura_final, f'{estadistico} ({var_units})', var_units = var_units,  str_title = str_title,  fig = fig, ax = ax)        
             i = i + 1
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 1, 0.9])  # Ajustar para que no solapen los textos
     plt.savefig(f'{ruta_actual}/misc/WRF_validation_tables/{var_name}_AllScores_avg_region_pre_vs_post.png', dpi = 600)        
     plt.close()

@@ -58,12 +58,12 @@ def generate_KNMI_df_STNvsDATETIME(fecha, var_name, STN = 'all'):
 
 
     variables = [
-        'HH', 'DD', 'FH', 'FF', 'FX', 'T', 'TD', 'P', 'VV', 'N', 'U', 'WW', 'IX', 'M', 'R', 'S', 'O', 'Y', 'TZ', 'Q'
+        'HH', 'DD', 'FH', 'FF', 'FX', 'T', 'TD', 'P', 'VV', 'N', 'U', 'WW', 'IX', 'M', 'R', 'S', 'O', 'Y', 'TZ', 'Q', 'T10N'
     ] # Data_Headers.txt para más info
     unidades = [
         'hora (UT)', 'grados', 'wind coming from', 'm/s', 'm/s', 'ºC', 'ºC', 'hPa', 'km', 'octavos', 
         'porcentaje (%)', 'código (00-99)', 'indicador (1-7)', 'booleano (0/1)', 'booleano (0/1)', 
-        'booleano (0/1)', 'booleano (0/1)', 'booleano (0/1)', 'ºC', 'g/kg'
+        'booleano (0/1)', 'booleano (0/1)', 'booleano (0/1)', 'ºC', 'g/kg', 'ºC'
     ]
 
     # Si la variable está en el array, asignar la unidad correspondiente

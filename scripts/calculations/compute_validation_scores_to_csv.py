@@ -77,7 +77,7 @@ ruta_datos_KNMI_NorthSea = ruta_actual / 'data' / 'Obs' / 'KNMI_NorthSea'
 ruta_coords_KNMI_land = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_land.csv'
 ruta_coords_KNMI_NorthSea = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_NorthSea.csv'
 
-compute_data = False # si compute_data == True calcula los datos, si no, los importa
+compute_data = True # si compute_data == True calcula los datos, si no, los importa
 avg_zones = True
 ### PARÁMETROS:
 sim_name = 'Sim_3'
@@ -140,7 +140,6 @@ def calcular_estadisticos(df_modelo, df_obs, str_units):
 
     # Calcular la correlación de Pearson por columna
     correlacion = df_modelo.corrwith(df_obs, axis=0)
-
     # breakpoint()
     # Combinar los estadísticos en un DataFrame
     estadisticos = pd.DataFrame({
@@ -148,6 +147,7 @@ def calcular_estadisticos(df_modelo, df_obs, str_units):
         f'MAE ({str(str_units)})': mae_abs,
         f'Bias ({str(str_units)})': biass,
         'Pearson coeff': correlacion,
+        f'Avg. Obs ({str(str_units)})': df_obs.mean()
     })
 
     return estadisticos
@@ -418,7 +418,7 @@ for sim_name in sim_names:
             # pd.DataFrame([estadisticos.mean()]).round(2).to_csv(f'{ruta_actual}/misc/WRF_validation/Estadisticos_{var_name}_WRF_{sim_name}_vs_KNMIObs.csv', index = False)
             
             estadisticos.to_csv(f'{ruta_actual}/misc/WRF_validation_csv_files/{sim_name}/scores_{var_name}_{sim_name}_{date_of_interest}_{period_computation}.csv')
-            estadisticos = estadisticos[(estadisticos[[f'RMSE ({str(var_units)})', f'MAE ({str(var_units)})', f'Bias ({str(var_units)})', 'Pearson coeff']] != 0).all(axis=1)]
+            estadisticos = estadisticos[(estadisticos[[f'RMSE ({str(var_units)})', f'MAE ({str(var_units)})', f'Bias ({str(var_units)})', 'Pearson coeff', f'Avg. Obs ({str(var_units)})']] != 0).all(axis=1)]
             estadisticos = estadisticos.round(2)
 
 
@@ -447,7 +447,7 @@ for sim_name in sim_names:
         estadisticos = pd.read_csv(f'{ruta_actual}/misc/WRF_validation_csv_files/{sim_name}/scores_{var_name}_{sim_name}_{date_of_interest}_{period_computation}.csv', index_col = 0)
         # Filtrar las filas que tienen un valor 0 en cualquier columna de métricas
         
-        estadisticos = estadisticos[(estadisticos[[f'RMSE ({str(var_units)})', f'MAE ({str(var_units)})', f'Bias ({str(var_units)})', 'Pearson coeff']] != 0).all(axis=1)]
+        estadisticos = estadisticos[(estadisticos[[f'RMSE ({str(var_units)})', f'MAE ({str(var_units)})', f'Bias ({str(var_units)})', 'Pearson coeff', f'Avg. Obs ({str(var_units)})']] != 0).all(axis=1)]
         estadisticos = estadisticos.round(2)
 
 
@@ -460,7 +460,7 @@ for sim_name in sim_names:
         estadisticos.rename(columns={'index': 'STN'}, inplace=True)
 
         # Paso 3: Reordenar las columnas para que `Estación` y `LOC` estén al principio
-        estadisticos = estadisticos[['NAME', 'LOC', f'RMSE ({str(var_units)})', f'MAE ({str(var_units)})', f'Bias ({str(var_units)})', 'Pearson coeff']]
+        estadisticos = estadisticos[['NAME', 'LOC', f'RMSE ({str(var_units)})', f'MAE ({str(var_units)})', f'Bias ({str(var_units)})', 'Pearson coeff', f'Avg. Obs ({str(var_units)})']]
 
         # Paso 4: Ordenar el DataFrame `estadisticos` por la columna `LOC`
         estadisticos = estadisticos.sort_values(by='LOC')
@@ -476,7 +476,6 @@ for sim_name in sim_names:
 
         if avg_zones == True:
             estadisticos = estadisticos.groupby('LOC').mean(numeric_only=True).round(2).reset_index()
-        
         estadisticos.to_csv(f'{ruta_actual}/misc/WRF_validation_csv_files/{sim_name}/scores_{var_name}_{sim_name}_{date_of_interest}_{period_computation}{str_avg_zones}.csv')
 
         estadisticos_sims.append(estadisticos)
