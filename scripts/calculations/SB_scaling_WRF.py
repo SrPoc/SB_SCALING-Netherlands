@@ -504,7 +504,7 @@ bounds_lower = [0, -0.55, -2.3, 0.45]  # Ligeramente restringidos
 bounds_upper = [10, -0.45, -2.2, 0.55]  # Ligeramente restringidos
 
 bounds_lower = [0, -3, -4, -4]  # Restricciones con sentido físico
-bounds_upper = [20, 3, 4, 4]  # Restricciones con sentido fisico
+bounds_upper = [30, 3, 4, 4]  # Restricciones con sentido fisico
 
 # Realizar el ajuste de curva no lineal
 # Inicializamos los valores de [a, b, c, d] en [1, -0.5, -1, 0.5] como ejemplo
