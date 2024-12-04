@@ -1,8 +1,9 @@
 '''
-Script for scaling the Sea Breeze from radiosounding data and surface turbulent measures.
+Script for scaling the Sea Breeze from wrfout files.
 References:
 Steyn, D. G. (1998). Scaling the vertical structure of sea breezes. Boundary-layer meteorology, 86, 505-524.
 Steyn, D. G. (2003). Scaling the vertical structure of sea breezes revisited. Boundary-layer meteorology, 107, 177-188.
+Wichink Kruit, R. J., Holtslag, A. A. M., & Tijm, A. B. C. (2004). Scaling of the sea-breeze strength with observations in the Netherlands. Boundary-layer meteorology, 112, 369-380.
 Porson, A., Steyn, D. G., & Schayes, G. (2007). Sea-breeze scaling from numerical model simulations, Part I: Pure sea breezes. Boundary-layer meteorology, 122, 17-29.
 Porson, A., Steyn, D. G., & Schayes, G. (2007). Sea-breeze scaling from numerical model simulations, part II: Interaction between the sea breeze and slope flows. Boundary-layer meteorology, 122, 31-41.
 
@@ -33,10 +34,8 @@ from processing_data import generate_WRF_df_STNvsDATETIME
 from import_wrfout_data import extract_point_data
 from netCDF4 import Dataset
 # Abre el archivo wrfout
-compute_SB_scaling_data = False
+compute_SB_scaling_data = True
 
-var_names_sup = ('HFX', 'TSK')
-var_names_air = ('U', 'V', 'T')
 
 sim_name = 'Sim_4'
 domain_number = '2'
@@ -159,12 +158,12 @@ if compute_SB_scaling_data == True:
 
 
     ###------------
-    ### Extraigo la T en el punto correspondiente a Voorschoten para cslcular la temperatura de referencia (media) de la pbl:
+    ### Extraigo la T en el punto correspondiente a Voorschoten para calcular la temperatura de referencia (media) de la pbl:
     rel_path_to_sims = 'data/Models/WRF/Sim_4/'
     gen_path_to_sims = Path.cwd().joinpath(rel_path_to_sims)
 
     path_to_sims = sorted([file.name for file in gen_path_to_sims.glob('*') if file.is_file()])
-
+    breakpoint()
     # Crear un rango de tiempo completo
     fecha_inicio = f'{date_of_interest} 00:00:00'
     fecha_fin = f'{date_of_interest} 23:00:00'
@@ -577,79 +576,117 @@ ydata = (SB_scaling_data['z_sb'] / SB_scaling_data['z_s']).values
 def modelo_z_sb_z_s(Pi_1, Pi_2, a, b, c):
     return a * Pi_1**b * Pi_2**c
 
-for prueba_i in range(40):
-    bounds_lower = [0, -4, -4, -4]  # Ligeramente restringidos
-    bounds_upper = [30, 4, 4, 4]  # Ligeramente restringidos
 
-
-    
-    # Realizar el ajuste de curva no lineal
-    # Inicializamos los valores de [a, b, c, d] en [1, -0.5, -1, 0.5] como ejemplo
-    # Usamos lambda para pasar Pi_1, Pi_2, Pi_4 como argumentos individuales
-    popt, pcov = curve_fit(lambda P, a, b, c,e: modelo_u_sb_u_s(Pi_1, Pi_2, Pi_4, a, b,c,e), 
-                           xdata=np.zeros_like(Pi_1),
-                           ydata=ydata,
-                           p0=[0.75, 0.3, -5/2,0],
-                           bounds = (bounds_lower, bounds_upper), 
-                            maxfev=20000,  # Increase the max function evaluations for better convergence
-                            ftol=1e-6,     # Stricter function tolerance
-                            xtol=1e-6,     # Stricter parameter tolerance
-                            gtol=1e-6)      # Stricter gradient tolerance
-    # Extraer los coeficientes ajustados
-    breakpoint()
-    a, b, c, e = popt
-
-    # Actualizar o añadir los resultados de la simulación
-    # updated_table = generate_table_parameters_SB_scaling(path_to_table, 'SB_scaling_parameters.csv', sim_name, a, b, d)
+bounds_lower = [0, -4, -4, -4]  # Ligeramente restringidos
+bounds_upper = [30, 4, 4, 4]  # Ligeramente restringidos
 
 
 
-    # Calcular los valores ajustados de u_sb/u_s usando los coeficientes ajustados
-    z_sb_z_s_ajustado = a * SB_scaling_data['Pi_1']**b * SB_scaling_data['Pi_2']**c * SB_scaling_data['Pi_4']**e
+# Realizar el ajuste de curva no lineal
+# Inicializamos los valores de [a, b, c, d] en [1, -0.5, -1, 0.5] como ejemplo
+# Usamos lambda para pasar Pi_1, Pi_2, Pi_4 como argumentos individuales
+popt, pcov = curve_fit(lambda P, a, b, c,e: modelo_u_sb_u_s(Pi_1, Pi_2, Pi_4, a, b,c,e), 
+                        xdata=np.zeros_like(Pi_1),
+                        ydata=ydata,
+                        p0=[0.75, 0.3, -5/2,0],
+                        bounds = (bounds_lower, bounds_upper), 
+                        maxfev=20000,  # Increase the max function evaluations for better convergence
+                        ftol=1e-6,     # Stricter function tolerance
+                        xtol=1e-6,     # Stricter parameter tolerance
+                        gtol=1e-6)      # Stricter gradient tolerance
+# Extraer los coeficientes ajustados
+a, b, c, e = popt
 
-    ###################### PLOT DE LA FIGURA ###########################
-    import matplotlib.cm as cm
-    import matplotlib.colors as mcolors
+# Actualizar o añadir los resultados de la simulación
+# updated_table = generate_table_parameters_SB_scaling(path_to_table, 'SB_scaling_parameters.csv', sim_name, a, b, d)
 
-    norm = mcolors.Normalize(vmin=0, vmax=len(z_sb_z_s_ajustado) - 1)
-    colormap = cm.get_cmap("copper")  # Mapa de colores marrón (cobre)
 
-    # Crear los colores para cada punto
-    colors = [colormap(norm(i)) for i in range(len(z_sb_z_s_ajustado))]
 
-    # Crear la figura y el eje
-    fig, ax = plt.subplots(figsize=(8, 6))
+# Calcular los valores ajustados de u_sb/u_s usando los coeficientes ajustados
+z_sb_z_s_ajustado = a * SB_scaling_data['Pi_1']**b * SB_scaling_data['Pi_2']**c * SB_scaling_data['Pi_4']**e
 
-    # Gráfico de dispersión con colores
-    scatter = ax.scatter(z_sb_z_s_ajustado,SB_scaling_data['u_sb'] / SB_scaling_data['u_s'],color=colors,edgecolor='black')
+###################### PLOT DE LA FIGURA ###########################
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 
-    # Línea x=y=1
-    x = np.linspace(0, 2, 100)
-    ax.plot(x, x, color='gray', linestyle='--', linewidth=1.5)
-    ax.set_xlim(0, np.max(((z_sb_z_s_ajustado.max() + 1), ((SB_scaling_data['u_sb'] / SB_scaling_data['u_s']).max() + 0.1))))
-    ax.set_ylim(0, np.max(((z_sb_z_s_ajustado.max() + 1), ((SB_scaling_data['u_sb'] / SB_scaling_data['u_s']).max() + 0.1))))
-    # Configuración de límites
-    # ax.set_xlim(0, 1.2)
-    # ax.set_ylim(0, 1.2)
+norm = mcolors.Normalize(vmin=0, vmax=len(z_sb_z_s_ajustado) - 1)
+colormap = cm.get_cmap("copper")  # Mapa de colores marrón (cobre)
 
-    # Etiquetas y título
-    ax.set_xlabel(f"${np.round(a, 3)} \\Pi_1^{{{np.round(b, 2)}}} \\Pi_2^{{{np.round(c, 2)}}} \\Pi_4^{{{np.round(3, 2)}}}$", fontsize=12)
-    ax.set_ylabel(r'$z_{sb}/z_s$', fontsize=12)
-    ax.set_title(r'SB scaling for $z_{SB}/z_s$ ('+f'{sim_name})', fontsize=14)
+# Crear los colores para cada punto
+colors = [colormap(norm(i)) for i in range(len(z_sb_z_s_ajustado))]
 
-    # Barra de color asociada al gráfico de dispersión
-    cbar = fig.colorbar(cm.ScalarMappable(norm=norm, cmap=colormap), ax=ax, orientation='vertical', label='Hour (UTC)')
-    # Crear las etiquetas de tiempo (horas UTC)
-    time_labels = z_sb_z_s_ajustado.index.strftime('%Hh')
-    cbar.set_ticks(np.linspace(0, len(z_sb_z_s_ajustado) - 1, len(z_sb_z_s_ajustado)))
-    cbar.set_ticklabels(time_labels)
-    # Leyenda y rejilla
+# Crear la figura y el eje
+fig, ax = plt.subplots(figsize=(8, 6))
 
-    ax.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
+# Gráfico de dispersión con colores
+scatter = ax.scatter(z_sb_z_s_ajustado,SB_scaling_data['u_sb'] / SB_scaling_data['u_s'],color=colors,edgecolor='black')
 
-    # Guardar la figura
-    fig.tight_layout()
-    plt.savefig(f'{path_to_figs}/Z_SB_SCALING_WRF_{sim_name}_d0{domain_number}_{date_of_interest}.png', dpi=600)
+# Línea x=y=1
+x = np.linspace(0, 2, 100)
+ax.plot(x, x, color='gray', linestyle='--', linewidth=1.5)
+ax.set_xlim(0, np.max(((z_sb_z_s_ajustado.max() + 1), ((SB_scaling_data['u_sb'] / SB_scaling_data['u_s']).max() + 0.1))))
+ax.set_ylim(0, np.max(((z_sb_z_s_ajustado.max() + 1), ((SB_scaling_data['u_sb'] / SB_scaling_data['u_s']).max() + 0.1))))
+# Configuración de límites
+# ax.set_xlim(0, 1.2)
+# ax.set_ylim(0, 1.2)
 
-    #####################################################################
+# Etiquetas y título
+ax.set_xlabel(f"${np.round(a, 3)} \\Pi_1^{{{np.round(b, 2)}}} \\Pi_2^{{{np.round(c, 2)}}} \\Pi_4^{{{np.round(3, 2)}}}$", fontsize=12)
+ax.set_ylabel(r'$z_{sb}/z_s$', fontsize=12)
+ax.set_title(r'SB scaling for $z_{SB}/z_s$ ('+f'{sim_name})', fontsize=14)
+
+# Barra de color asociada al gráfico de dispersión
+cbar = fig.colorbar(cm.ScalarMappable(norm=norm, cmap=colormap), ax=ax, orientation='vertical', label='Hour (UTC)')
+# Crear las etiquetas de tiempo (horas UTC)
+time_labels = z_sb_z_s_ajustado.index.strftime('%Hh')
+cbar.set_ticks(np.linspace(0, len(z_sb_z_s_ajustado) - 1, len(z_sb_z_s_ajustado)))
+cbar.set_ticklabels(time_labels)
+# Leyenda y rejilla
+
+ax.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
+
+# Guardar la figura
+fig.tight_layout()
+plt.savefig(f'{path_to_figs}/Z_SB_SCALING_WRF_{sim_name}_d0{domain_number}_{date_of_interest}.png', dpi=600)
+
+#####################################################################
+
+#####################################################################
+
+var_plot = 'delta_T'
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
+
+norm = mcolors.Normalize(vmin=0, vmax=len(SB_scaling_data) - 1)
+colormap = cm.get_cmap("copper")  # Mapa de colores marrón (cobre)
+
+# Crear los colores para cada punto
+colors = [colormap(norm(i)) for i in range(len(SB_scaling_data))]
+
+# Crear la figura y el eje
+fig, ax = plt.subplots(figsize=(8, 6))
+
+# Gráfico de dispersión con colores
+scatter = ax.scatter(SB_scaling_data['u_sb'], SB_scaling_data[var_plot], color=colors,edgecolor='black')
+
+# Etiquetas y título
+ax.set_ylabel(f"ΔT (ºC)", fontsize=12)
+ax.set_xlabel(r'$u_{sb}$ (m/s)', fontsize=12)
+ax.set_title(f'Effect of ΔT on SB intensity', fontsize=14)
+
+# Barra de color asociada al gráfico de dispersión
+cbar = fig.colorbar(cm.ScalarMappable(norm=norm, cmap=colormap), ax=ax, orientation='vertical', label='Hour (UTC)')
+# Crear las etiquetas de tiempo (horas UTC)
+time_labels = SB_scaling_data.index.strftime('%Hh')
+cbar.set_ticks(np.linspace(0, len(SB_scaling_data['u_sb']) - 1, len(SB_scaling_data['u_sb'])))
+cbar.set_ticklabels(time_labels)
+
+# Leyenda y rejilla
+ax.legend()
+ax.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
+
+# Guardar la figura
+fig.tight_layout()
+plt.savefig(f'{path_to_figs}/usb-vs-{var_plot}_{sim_name}_d0{domain_number}_{date_of_interest}.png', dpi=600)
+
 breakpoint()
