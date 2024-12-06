@@ -251,11 +251,10 @@ if compute_SB_scaling_data == True:
 
         # Agregar la variable Time desde el archivo wrfout (por ejemplo, a partir de getvar o directo desde ncfile)
         time = getvar(ncfile, "Times", meta=False)
-        
         # Asignar el tiempo como coordenada
         wdir_punto = wdir_punto.expand_dims(Time=[time])  # Añadir Time como nueva dimensión
         wspd_punto = wspd_punto.expand_dims(Time=[time])  # Añadir Time como nueva dimensión
-
+        
         # Añadir el DataArray a la lista
         wdir_list.append(wdir_punto)
         wspd_list.append(wspd_punto)
@@ -578,7 +577,7 @@ def modelo_z_sb_z_s(Pi_1, Pi_2, a, b, c):
 
 
 bounds_lower = [0, -4, -4, -4]  # Ligeramente restringidos
-bounds_upper = [30, 4, 4, 4]  # Ligeramente restringidos
+bounds_upper = [30, -4, -4, -4]  # Ligeramente restringidos
 
 
 
