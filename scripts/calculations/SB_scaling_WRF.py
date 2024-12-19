@@ -37,7 +37,7 @@ from netCDF4 import Dataset
 compute_SB_scaling_data = True
 
 
-sim_name = 'Sim_4'
+sim_name = 'Sim_1'
 domain_number = '2'
 date_of_interest = '2014-07-16'
 

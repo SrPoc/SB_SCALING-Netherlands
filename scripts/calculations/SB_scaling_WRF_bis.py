@@ -42,13 +42,13 @@ compute_SB_scaling_data = True # Activa el calculo de las variables N, H, Gamma 
 
 
 # Info especifica de la simulación a utilizar para el scaling:
-sim_name = 'Sim_4'
+sim_name = 'Sim_1'
 domain_number = '2'
 date_of_interest = '2014-07-16'
 
 # Codigos de las estaciones del KNMI desde las que se buscara el punto de malla más cercano y
 # se procederá al cálculo de ΔT:
-land_stn = 344
+land_stn = 344#209, 210, 215, 225, 240, 257, 330, 343, 344, 
 sea_stn = 320
 ruta_coords_KNMI_land = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_land.csv'
 ruta_coords_KNMI_NorthSea = ruta_actual / 'data' / 'Obs' / 'Coords_KNMI_NorthSea.csv'
@@ -59,7 +59,7 @@ coords_KNMI_NorthSea = pd.read_csv(ruta_coords_KNMI_NorthSea, sep=',', header=0,
 coords_KNMI_NorthSea.set_index('STN', inplace=True)
 
 coords_KNMI_land_and_sea = pd.concat([coords_KNMI_land, coords_KNMI_NorthSea])
-breakpoint()
+# breakpoint()
 # Constantes
 g = 9.81 # m/s2
 omega = 2*np.pi/(86400)  #s-1
@@ -400,11 +400,11 @@ for land_stn in coords_KNMI_land_and_sea[coords_KNMI_land_and_sea['LOC'] == 'coa
         delta_Z = np.insert(np.diff(alturas_loc_superficie), 0, alturas_loc_superficie[0])  # Esto te da los delta_Z para cada nivel
         # Inicializar un diccionario para almacenar los resultados para cada tiempo
         U_sb_results = pd.DataFrame(index=first_outside_height.index, columns=['U_sb'])
-
+        Z_sb_results = pd.DataFrame(index=first_outside_height.index, columns=['Z_sb'])
         # Iterar sobre cada tiempo en first_outside_height
         for time, Z_sb in first_outside_height.items():
             
-            
+            # breakpoint()
             # Seleccionar valores de wspd hasta max_level para el tiempo específico
             wspd_values = wind_for_Usb_comp.loc[time].loc[:Z_sb, 'wspd']
             
@@ -422,6 +422,8 @@ for land_stn in coords_KNMI_land_and_sea[coords_KNMI_land_and_sea['LOC'] == 'coa
             
             # Guardar el resultado
             U_sb_results.loc[time, 'U_sb'] = float(U_sb)
+            Z_sb_results.loc[time, 'Z_sb'] = float(Z_sb_real)
+
         U_sb_alltimes = U_sb_results.reindex(indice_completo).tz_localize('UTC')
         U_sb_alltimes.columns = ['u_sb']
         U_sb_alltimes = U_sb_alltimes.astype(float)
@@ -442,8 +444,8 @@ for land_stn in coords_KNMI_land_and_sea[coords_KNMI_land_and_sea['LOC'] == 'coa
         parameters['u_sb'] = U_sb_alltimes
 
         parameters['z_s'] = parameters['H']/(parameters['omega']*parameters['ΔT'])
-        parameters['z_sb'] = 0.26 / parameters['omega'] * (parameters['g']*parameters['H']**2/ (parameters['N']*parameters['ΔT']* parameters['Avg_T_PBL']))
-
+        # parameters['z_sb'] = 0.26 / parameters['omega'] * (parameters['g']*parameters['H']**2/ (parameters['N']*parameters['ΔT']* parameters['Avg_T_PBL']))
+        parameters['z_sb'] = Z_sb_results.reindex(indice_completo).tz_localize('UTC')
         parameters = parameters.dropna()
 
         SB_scaling_data = parameters[(parameters.index > t_p[0].strftime("%Y-%m-%d %H:%M:%S")) & (parameters.index < t_p[-1].strftime("%Y-%m-%d %H:%M:%S"))]
@@ -460,84 +462,128 @@ for land_stn in coords_KNMI_land_and_sea[coords_KNMI_land_and_sea['LOC'] == 'coa
     Pi_1 = SB_scaling_data['Pi_1'].values
     Pi_2 = SB_scaling_data['Pi_2'].values
     Pi_4 = SB_scaling_data['Pi_4'].values
-    ydata = (SB_scaling_data['u_sb'] / SB_scaling_data['u_s']).values
+    ydata_u = (SB_scaling_data['u_sb'] / SB_scaling_data['u_s']).values
+    ydata_z = (SB_scaling_data['z_sb'] / SB_scaling_data['z_s']).values
 
-
-
-
-
+    
     # Definir la función de ajuste en la forma de la ecuación
+    # def modelo_u_sb_u_s(a, b, c, d, Pi_1 = 1, Pi_2 = 1, Pi_4 = 1):
+    #     return a * Pi_1**b * Pi_2**c * Pi_4**d
     def modelo_u_sb_u_s(Pi_1, Pi_2, Pi_4, a, b, c, d):
         return a * Pi_1**b * Pi_2**c * Pi_4**d
+    def modelo_z_sb_z_s(Pi_1, Pi_2, Pi_4, a, b, c, d):
+            return a * Pi_1**b * Pi_2**c * Pi_4**d
 
     # bounds_lower = [0, -0.55, -2.3, 0.45]  # Ligeramente restringidos
     # bounds_upper = [10, -0.45, -2.2, 0.55]  # Ligeramente restringidos
-
     bounds_lower = [0, -3, -4, -4]  # Restricciones con sentido físico
     bounds_upper = [30, 3, 4, 4]  # Restricciones con sentido fisico
 
+    ## APLICAMOS EL SCALING A LA PROFUNDIDAD (Z)
     # Realizar el ajuste de curva no lineal
     # Inicializamos los valores de [a, b, c, d] en [1, -0.5, -1, 0.5] como ejemplo
     # Usamos lambda para pasar Pi_1, Pi_2, Pi_4 como argumentos individuales
-    popt, pcov = curve_fit(lambda P, a, b, c, d: modelo_u_sb_u_s(Pi_1, Pi_2, Pi_4, a, b, c, d), 
+    popt, pcov = curve_fit(lambda P, a, b, c, d: modelo_z_sb_z_s(Pi_1 = Pi_1, Pi_2 = Pi_2, Pi_4 = Pi_4, a = a, b = b, c = c, d = d), 
                         xdata=np.zeros_like(Pi_1),  # xdata es solo un marcador, no se usa realmente
-                        ydata=ydata, 
+                        ydata=ydata_z, 
                         p0=[0.85, -0.5, 9/4, 1/2],
                         bounds = (bounds_lower, bounds_upper), maxfev=10000, ftol=1e-2, xtol=1e-2, gtol=1e-2)
     # Extraer los coeficientes ajustados
-    a, b, c, d = popt
+    a_z, b_z, c_z, d_z = popt
 
     # Actualizar o añadir los resultados de la simulación
-    updated_table = generate_table_parameters_SB_scaling(path_to_table, 'SB_scaling_parameters_diff_locs.csv', land_stn, a, b, c, d)
+    updated_table = generate_table_parameters_SB_scaling(path_to_table, f'SB_depth_scaling_parameters_diff_locs_{sim_name}', land_stn, a_z, b_z, c_z, d_z)
 
 
 
     # Calcular los valores ajustados de u_sb/u_s usando los coeficientes ajustados
-    u_sb_u_s_ajustado = a * SB_scaling_data['Pi_1']**b * SB_scaling_data['Pi_2']**c * SB_scaling_data['Pi_4']**d
+    z_sb_z_s_ajustado = a_z * SB_scaling_data['Pi_1']**b_z * SB_scaling_data['Pi_2']**c_z * SB_scaling_data['Pi_4']**d_z
 
+    ## APLICAMOS EL SCALING A LA INTENSIDAD (u)
+    # Realizar el ajuste de curva no lineal
+    # Inicializamos los valores de [a, b, c, d] en [1, -0.5, -1, 0.5] como ejemplo
+    # Usamos lambda para pasar Pi_1, Pi_2, Pi_4 como argumentos individuales
+    popt, pcov = curve_fit(lambda P, a, b, c, d: modelo_u_sb_u_s(Pi_1 = Pi_1, Pi_2 = Pi_2, Pi_4 = Pi_4, a = a, b = b, c = c, d = d), 
+                        xdata=np.zeros_like(Pi_1),  # xdata es solo un marcador, no se usa realmente
+                        ydata=ydata_u, 
+                        p0=[0.85, 0, 9/4, 1/2],
+                        bounds = (bounds_lower, bounds_upper), maxfev=10000, ftol=1e-2, xtol=1e-2, gtol=1e-2)
+    # Extraer los coeficientes ajustados
+
+    a_u, b_u, c_u, d_u = popt
+
+
+    # Actualizar o añadir los resultados de la simulación
+    updated_table = generate_table_parameters_SB_scaling(path_to_table, f'SB_intensity_scaling_parameters_diff_locs_{sim_name}', land_stn, a_u, b_u, c_u, d_u)
+
+
+
+    # Calcular los valores ajustados de u_sb/u_s usando los coeficientes ajustados
+    u_sb_u_s_ajustado = a_u * SB_scaling_data['Pi_1']**b_u * SB_scaling_data['Pi_2']**c_u * SB_scaling_data['Pi_4']**d_u
     ###################### PLOT DE LA FIGURA ###########################
     import matplotlib.cm as cm
     import matplotlib.colors as mcolors
 
-    norm = mcolors.Normalize(vmin=0, vmax=len(u_sb_u_s_ajustado) - 1)
-    colormap = cm.get_cmap("copper")  # Mapa de colores marrón (cobre)
+    for atribute in ('depth', 'intensity'):
+        if atribute == 'depth':
+            x_data = a_z * SB_scaling_data['Pi_1']**b_z * SB_scaling_data['Pi_2']**c_z * SB_scaling_data['Pi_4']**d_z
+            y_data = ydata_z
+            str_atr = 'Z'
+            a, b,c, d = (a_z, b_z, c_z, d_z)
+        if atribute == 'intensity':
+            x_data = a_u * SB_scaling_data['Pi_1']**b_u * SB_scaling_data['Pi_2']**c_u * SB_scaling_data['Pi_4']**d_u
+            y_data = ydata_u
+            str_atr = 'U'
+            a, b,c, d = (a_u, b_u, c_u, d_u)      
 
-    # Crear los colores para cada punto
-    colors = [colormap(norm(i)) for i in range(len(u_sb_u_s_ajustado))]
+        norm = mcolors.Normalize(vmin=0, vmax=len(x_data) - 1)
+        colormap = cm.get_cmap("copper")  # Mapa de colores marrón (cobre)
 
-    # Crear la figura y el eje
-    fig, ax = plt.subplots(figsize=(8, 6))
+        # Crear los colores para cada punto
+        colors = [colormap(norm(i)) for i in range(len(x_data))]
 
-    # Gráfico de dispersión con colores
-    scatter = ax.scatter(u_sb_u_s_ajustado,SB_scaling_data['u_sb'] / SB_scaling_data['u_s'],color=colors,edgecolor='black')
+        # Crear la figura y el eje
+        fig, ax = plt.subplots(figsize=(8, 6))
 
-    # Línea x=y=1
-    x = np.linspace(0, 2, 100)
-    ax.plot(x, x, color='gray', linestyle='--', linewidth=1.5)
-    ax.set_xlim(0, np.max(((u_sb_u_s_ajustado.max() + 1), ((SB_scaling_data['u_sb'] / SB_scaling_data['u_s']).max() + 0.1))))
-    ax.set_ylim(0, np.max(((u_sb_u_s_ajustado.max() + 1), ((SB_scaling_data['u_sb'] / SB_scaling_data['u_s']).max() + 0.1))))
-    # Configuración de límites
-    # ax.set_xlim(0, 1.2)
-    # ax.set_ylim(0, 1.2)
+        # Gráfico de dispersión con colores
+        scatter = ax.scatter(x_data,y_data,color=colors,edgecolor='black')
 
-    # Etiquetas y título
-    ax.set_xlabel(f"${np.round(a, 3)} \\Pi_1^{{{np.round(b, 2)}}} \\Pi_2^{{{np.round(c, 2)}}} \\Pi_4^{{{np.round(d, 2)}}}$", fontsize=12)
-    ax.set_ylabel(r'$U_{sb}/U_s$', fontsize=12)
-    ax.set_title(r'SB scaling for $u_{SB}/u_s$ ('+f'{sim_name})', fontsize=14)
+        # Línea x=y=1
+        x = np.linspace(0, 500, 100)
+        ax.plot(x, x, color='gray', linestyle='--', linewidth=1.5)
+        ax.set_xlim(0, np.max(((x_data.max() + 0.1), ((y_data).max() + 0.1))))
+        ax.set_ylim(0, np.max(((x_data.max() + 0.1), ((y_data).max() + 0.1))))
+        # Configuración de límites
+        # ax.set_xlim(0, 1.2)
+        # ax.set_ylim(0, 1.2)
 
-    # Barra de color asociada al gráfico de dispersión
-    cbar = fig.colorbar(cm.ScalarMappable(norm=norm, cmap=colormap), ax=ax, orientation='vertical', label='Hour (UTC)')
-    # Crear las etiquetas de tiempo (horas UTC)
-    time_labels = u_sb_u_s_ajustado.index.strftime('%Hh')
-    cbar.set_ticks(np.linspace(0, len(u_sb_u_s_ajustado) - 1, len(u_sb_u_s_ajustado)))
-    cbar.set_ticklabels(time_labels)
-    # Leyenda y rejilla
+        ax.set_xlabel(
+            f"${{{np.round(a, 3)}}} \\Pi_1^{{{np.round(b, 2)}}} \\Pi_2^{{{np.round(c, 2)}}} \\Pi_4^{{{np.round(d, 2)}}}$", 
+            fontsize=12
+        )
+        # Etiquetas y título
+        ax.set_ylabel(
+            f"${str_atr}_{{sb}}/{str_atr}_{{s}}$", 
+            fontsize=12
+        )
+        ax.set_title(
+            f"SB scaling for ${str_atr}_{{SB}}/{str_atr}_{{s}}$ ({sim_name})", 
+            fontsize=14
+        )
 
-    ax.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
+        # Barra de color asociada al gráfico de dispersión
+        cbar = fig.colorbar(cm.ScalarMappable(norm=norm, cmap=colormap), ax=ax, orientation='vertical', label='Hour (UTC)')
+        # Crear las etiquetas de tiempo (horas UTC)
+        time_labels = x_data.index.strftime('%Hh')
+        cbar.set_ticks(np.linspace(0, len(x_data) - 1, len(x_data)))
+        cbar.set_ticklabels(time_labels)
+        # Leyenda y rejilla
 
-    # Guardar la figura
-    fig.tight_layout()
-    plt.savefig(f'{path_to_figs}/U_SB_SCALING_WRF_STN{land_stn}_{sim_name}_d0{domain_number}_{date_of_interest}.png', dpi=600)
+        ax.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
+
+        # Guardar la figura
+        fig.tight_layout()
+        plt.savefig(f'{path_to_figs}/{str_atr}_SB_SCALING_WRF_STN{land_stn}_{sim_name}_d0{domain_number}_{date_of_interest}.png', dpi=600)
 
 
 #####################################################################
